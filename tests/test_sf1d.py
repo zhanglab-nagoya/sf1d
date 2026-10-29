@@ -15,6 +15,11 @@ def test_parse_sequence():
         parse_sequence("S10")  # S is reserved for the solvent
 
 
+def test_defaults_without_surface_parameters():
+    m = SF1D("A10", phib=1e-3, M=20, walls=2).solve()  # no chis/chis2 given: inert walls
+    assert np.all(m.chis == 0) and np.all(m.chis2 == 0)
+
+
 def test_monomer_adsorption_is_langmuir():
     phib, chis = 1e-3, 1.5
     m = SF1D("A1", chis={"A": chis}, phib=phib, M=10).solve()
@@ -60,15 +65,27 @@ def test_free_energy_derivative_wrt_surface_affinity(walls):
 
 
 def test_free_energy_derivative_wrt_chi():
-    """Stationarity: dOmega/dchi_AS equals the explicit derivative of the mixing term."""
+    """Stationarity: the total derivative dOmega/dchi_AS (re-solving) equals the
+    explicit derivative at frozen fields (Hellmann-Feynman)."""
     om = lambda c: SF1D("A10B90", chis={"A": 2.0}, chi={"AS": c, "BS": 0.4}, phib=1e-4, M=40).solve()
     h = 1e-4
-    fd = (om(0.8 + h).free_energy() - om(0.8 - h).free_energy()) / (2 * h)
+    total = (om(0.8 + h).free_energy() - om(0.8 - h).free_energy()) / (2 * h)
+
     m = om(0.8)
-    d = m.phi - m.phibulk[:, None]
-    a = m.avg(d, 0.0)
     iA, iS = m.idx["A"], m.idx["S"]
-    assert fd == pytest.approx(0.5 * (d[iA] * a[iS] + d[iS] * a[iA]).sum(), rel=1e-6)
+
+    def frozen(c):
+        m.chi[iA, iS] = m.chi[iS, iA] = c
+        return m.free_energy()
+
+    explicit = (frozen(0.8 + h) - frozen(0.8 - h)) / (2 * h)
+    assert total == pytest.approx(explicit, rel=1e-6)
+
+
+def test_critical_adsorption_shifts_with_solvent_quality():
+    """Scheutjens-Fleer convention: chis_c = ln(6/5) - lambda1*chi for long dilute chains."""
+    exc = lambda c: SF1D("A200", chis={"A": c}, chi={"AS": 0.5}, phib=1e-6, M=120).solve().analyse()[0]["theta_excess"]
+    assert brentq(exc, -0.2, 0.6, xtol=1e-5) == pytest.approx(np.log(6 / 5) - 0.5 / 6, abs=0.003)
 
 
 def test_distant_walls_and_restricted_equilibrium():
@@ -79,6 +96,15 @@ def test_distant_walls_and_restricted_equilibrium():
                       theta=full.analyse()[0]["theta_total"], **AB).solve()
     assert restricted.free_energy() == pytest.approx(full.free_energy(), rel=1e-9)
     assert np.max(np.abs(restricted.phi - full.phi)) < 1e-10
+
+
+def test_long_chain_restricted_equilibrium_without_overflow():
+    """Rescaled propagators: N=1000, restricted at the full-equilibrium amount."""
+    kw = dict(chis={"A": 1.0}, chi={"AS": 0.5}, phib=1e-4, M=30, walls=2)
+    with np.errstate(over="raise"):
+        full = SF1D("A1000", **kw).solve()
+        restricted = SF1D("A1000", theta=full.analyse()[0]["theta_total"], **kw).solve()
+    assert restricted.free_energy() == pytest.approx(full.free_energy(), rel=1e-9)
 
 
 def test_decomposition_and_bridges():
