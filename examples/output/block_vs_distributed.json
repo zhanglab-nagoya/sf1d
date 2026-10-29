@@ -1,0 +1,31 @@
+{
+  "parameters": {
+    "chis": {
+      "A": 2.0
+    },
+    "chi": {
+      "AS": 0.8,
+      "BS": 0.4
+    },
+    "phib": 0.0001,
+    "M": 80
+  },
+  "results": {
+    "block A10B90": {
+      "theta_adsorbed": 2.2224,
+      "adsorbed_chains_per_site": 0.0222,
+      "fraction_trains": 0.1293,
+      "fraction_loops": 0.0797,
+      "fraction_tails": 0.791,
+      "rms_distance_to_nearest_wall_adsorbed": 7.1641
+    },
+    "distributed (A1B9)x10": {
+      "theta_adsorbed": 0.0033,
+      "adsorbed_chains_per_site": 0.0,
+      "fraction_trains": 0.2812,
+      "fraction_loops": 0.358,
+      "fraction_tails": 0.3608,
+      "rms_distance_to_nearest_wall_adsorbed": 3.2338
+    }
+  }
+}

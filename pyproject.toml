@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sf1d"
+version = "0.1.0"
+description = "1D Scheutjens-Fleer self-consistent field theory for polymer adsorption on one wall or between two walls"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Johannes", email = "johannes.laurin@gmail.com" }]
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.22", "scipy>=1.8"]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.5"]
+test = ["pytest>=7"]
+
+[project.scripts]
+sf1d = "sf1d.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
