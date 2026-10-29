@@ -1,0 +1,102 @@
+REMARK LIGPARGEN GENERATED PDB FILE
+ATOM      1  C00 HEX     1       5.555   1.489   1.897
+ATOM      2  C01 HEX     1       4.930   0.751   0.723
+ATOM      3  C02 HEX     1       4.779   1.666  -0.491
+ATOM      4  C03 HEX     1       4.298   0.956  -1.762
+ATOM      5  C04 HEX     1       2.892   0.351  -1.663
+ATOM      6  C05 HEX     1       2.911  -1.147  -1.340
+ATOM      7  C06 HEX     1       1.515  -1.780  -1.327
+ATOM      8  C07 HEX     1       0.634  -1.280  -0.180
+ATOM      9  C08 HEX     1      -0.703  -2.024  -0.149
+ATOM     10  C09 HEX     1      -1.585  -1.643   1.045
+ATOM     11  C0A HEX     1      -2.002  -0.170   1.119
+ATOM     12  C0B HEX     1      -2.757   0.365  -0.103
+ATOM     13  C0C HEX     1      -4.032  -0.392  -0.489
+ATOM     14  C0D HEX     1      -5.090  -0.580   0.604
+ATOM     15  C0E HEX     1      -5.995   0.625   0.870
+ATOM     16  C0F HEX     1      -5.343   1.753   1.653
+ATOM     17  H0G HEX     1       6.559   1.847   1.646
+ATOM     18  H0H HEX     1       5.637   0.824   2.762
+ATOM     19  H0I HEX     1       4.945   2.351   2.186
+ATOM     20  H0J HEX     1       5.554  -0.113   0.468
+ATOM     21  H0K HEX     1       3.950   0.376   1.033
+ATOM     22  H0M HEX     1       4.086   2.482  -0.247
+ATOM     23  H0N HEX     1       5.748   2.134  -0.712
+ATOM     24  H0O HEX     1       5.030   0.198  -2.067
+ATOM     25  H0P HEX     1       4.284   1.709  -2.561
+ATOM     26  H0Q HEX     1       2.397   0.479  -2.636
+ATOM     27  H0R HEX     1       2.296   0.907  -0.931
+ATOM     28  H0S HEX     1       3.399  -1.329  -0.379
+ATOM     29  H0T HEX     1       3.510  -1.664  -2.100
+ATOM     30  H0U HEX     1       1.018  -1.596  -2.287
+ATOM     31  H0V HEX     1       1.637  -2.867  -1.238
+ATOM     32  H0W HEX     1       1.157  -1.423   0.773
+ATOM     33  H0X HEX     1       0.454  -0.207  -0.298
+ATOM     34  H0Y HEX     1      -0.509  -3.103  -0.094
+ATOM     35  H0Z HEX     1      -1.243  -1.854  -1.088
+ATOM     36  H10 HEX     1      -2.480  -2.275   1.032
+ATOM     37  H11 HEX     1      -1.051  -1.896   1.972
+ATOM     38  H12 HEX     1      -1.111   0.451   1.274
+ATOM     39  H13 HEX     1      -2.614  -0.029   2.017
+ATOM     40  H14 HEX     1      -2.989   1.420   0.070
+ATOM     41  H15 HEX     1      -2.084   0.360  -0.969
+ATOM     42  H16 HEX     1      -3.739  -1.388  -0.844
+ATOM     43  H17 HEX     1      -4.487   0.109  -1.352
+ATOM     44  H18 HEX     1      -4.638  -0.932   1.539
+ATOM     45  H19 HEX     1      -5.746  -1.395   0.267
+ATOM     46  H1A HEX     1      -6.397   1.014  -0.074
+ATOM     47  H1B HEX     1      -6.855   0.271   1.453
+ATOM     48  H1C HEX     1      -4.650   2.326   1.031
+ATOM     49  H1D HEX     1      -4.803   1.375   2.528
+ATOM     50  H1E HEX     1      -6.107   2.454   2.003
+TER 
+CONECT    1    2 
+CONECT    2    3 
+CONECT    3    4 
+CONECT    4    5 
+CONECT    5    6 
+CONECT    6    7 
+CONECT    7    8 
+CONECT    8    9 
+CONECT    9   10 
+CONECT   10   11 
+CONECT   11   12 
+CONECT   12   13 
+CONECT   13   14 
+CONECT   14   15 
+CONECT   15   16 
+CONECT    1   17 
+CONECT    1   18 
+CONECT    1   19 
+CONECT    2   20 
+CONECT    2   21 
+CONECT    3   22 
+CONECT    3   23 
+CONECT    4   24 
+CONECT    4   25 
+CONECT    5   26 
+CONECT    5   27 
+CONECT    6   28 
+CONECT    6   29 
+CONECT    7   30 
+CONECT    7   31 
+CONECT    8   32 
+CONECT    8   33 
+CONECT    9   34 
+CONECT    9   35 
+CONECT   10   36 
+CONECT   10   37 
+CONECT   11   38 
+CONECT   11   39 
+CONECT   12   40 
+CONECT   12   41 
+CONECT   13   42 
+CONECT   13   43 
+CONECT   14   44 
+CONECT   14   45 
+CONECT   15   46 
+CONECT   15   47 
+CONECT   16   48 
+CONECT   16   49 
+CONECT   16   50 
+END
