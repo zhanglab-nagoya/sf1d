@@ -28,17 +28,21 @@ Lattice and conventions
                - chis_x delta(z,1) - chis2_x delta(z,M)   [second term: 2 walls]
   u'(z) is the Lagrange field enforcing incompressibility, sum_x phi_x = 1.
   chis_x is the Silberberg adsorption exchange parameter of segment x
-  relative to solvent (solvent chis = 0; chis > 0 means adsorbing).
-  For the mixing term, a wall's neighbour slot is counted as bulk, so a
-  wall exerts no force beyond chis.  With this convention the
-  critical adsorption energy for long chains is chis_c = -ln(1 - lambda1)
-  = ln(6/5) ~= 0.182, the textbook cubic-lattice value.
+  relative to solvent (solvent chis = 0; chis > 0 means adsorbing), as in the
+  original Scheutjens-Fleer model and Namics, where chis_x = -lambda1
+  (chi_{x,wall} - chi_{solvent,wall}).  In that model a wall's neighbour slot
+  is empty in the mixing term.  Internally the mixing term counts that slot
+  as bulk and chis is shifted to compensate (see effective_chis); the two
+  forms are identical, and agree with Namics to ~1e-12.  The critical
+  adsorption energy of long dilute chains is chis_c = ln(6/5) - lambda1*chi
+  (0.182 in an athermal solvent).
 
 * Grand potential per lattice site of wall area (kT units), relative to bulk:
       Omega = sum_z [ -sum_i (phi_i - phi_i^b)/N_i - sum_x phi_x u_x
                       + 1/2 sum_xy chi_xy dphi_x <dphi_y>_0 ]
               - sum_x chis_x phi_x(1) [- sum_x chis2_x phi_x(M)]
-  with dphi = phi - phi^b and <.>_0 the site average with wall slots = 0.
+  with dphi = phi - phi^b, <.>_0 the site average with wall slots = 0, and
+  chis replaced by the effective (shifted) values.
   Its stationary point reproduces the SCF equations above.  For restricted
   equilibrium the free energy is A = Omega + (theta/N) ln(C N / phib).
   With one wall Omega is the interfacial tension gamma; with two walls the
@@ -106,7 +110,7 @@ class SF1D:
         for t, val in (chis or {}).items():
             self.chis[self.idx[t]] = val
         self.chis2 = np.zeros(n)
-        for t, val in (chis if chis2 is None else chis2 or {}).items():
+        for t, val in ((chis if chis2 is None else chis2) or {}).items():
             self.chis2[self.idx[t]] = val
 
         # Bulk composition
@@ -132,27 +136,53 @@ class SF1D:
         return self.avg(G, 0.0)
 
     def propagators(self, Gw, mask=None):
-        """Forward/backward chain propagators.  Gw: (..., ntypes, M) free-segment
-        weights.  mask (M,) multiplies every step, e.g. to forbid layer 1."""
+        """Forward/backward chain propagators, rescaled at every step so that
+        long, strongly adsorbed chains cannot overflow.  Gw: (..., ntypes, M)
+        free-segment weights; mask (M,) multiplies every step, e.g. to forbid
+        layer 1.  Returns scaled Gf, Gb (..., N, M), Gseg, and the log scale
+        factors lf, lb (..., N): true G(z,s|1) = Gf[s] exp(lf[s]), likewise Gb."""
         Gseg = Gw[..., self.seg_type, :]  # (..., N, M)
         if mask is not None:
             Gseg = Gseg * mask
-        Gf = np.empty_like(Gseg)
-        Gb = np.empty_like(Gseg)
         N = self.N
-        Gf[..., 0, :] = Gseg[..., 0, :]
+        Gf, Gb = np.empty_like(Gseg), np.empty_like(Gseg)
+        lf, lb = np.zeros(Gseg.shape[:-1]), np.zeros(Gseg.shape[:-1])
+
+        def store(G, lg, s, row, lprev):
+            c = row.max(axis=-1)
+            c = np.where(c > 0, c, 1.0)
+            G[..., s, :] = row / c[..., None]
+            lg[..., s] = lprev + np.log(c)
+
+        store(Gf, lf, 0, Gseg[..., 0, :], 0.0)
         for s in range(1, N):
-            Gf[..., s, :] = Gseg[..., s, :] * self.step(Gf[..., s - 1, :])
-        Gb[..., N - 1, :] = Gseg[..., N - 1, :]
+            store(Gf, lf, s, Gseg[..., s, :] * self.step(Gf[..., s - 1, :]), lf[..., s - 1])
+        store(Gb, lb, N - 1, Gseg[..., N - 1, :], 0.0)
         for s in range(N - 2, -1, -1):
-            Gb[..., s, :] = Gseg[..., s, :] * self.step(Gb[..., s + 1, :])
-        return Gf, Gb, Gseg
+            store(Gb, lb, s, Gseg[..., s, :] * self.step(Gb[..., s + 1, :]), lb[..., s + 1])
+        return Gf, Gb, Gseg, lf, lb
+
+    @staticmethod
+    def log_partition(Gf, lf):
+        """ln Q, the single-chain partition function, from scaled propagators."""
+        return lf[..., -1] + np.log(Gf[..., -1, :].sum(axis=-1))
+
+    def chains_per_site(self, lnQ):
+        """Number of chains per lattice site of wall area: phib Q / N in full
+        equilibrium, theta / N in restricted equilibrium."""
+        if self.theta is None:
+            return self.phib / self.N * np.exp(lnQ)
+        return np.full(np.shape(lnQ), self.theta / self.N)
 
     def densities(self, u):
-        """Volume fractions (..., ntypes, M) from potentials u (..., ntypes, M)."""
+        """Volume fractions (..., ntypes, M) from potentials u (..., ntypes, M).
+        Uses sum_z G(z,s|1) G(z,s|N) / G(z) = Q for every s, so the scale
+        factors cancel."""
         Gw = np.exp(-u)
-        Gf, Gb, Gseg = self.propagators(Gw)
-        phi_seg = self.norm(Gf) * Gf * Gb / Gseg  # (..., N, M)
+        Gf, Gb, Gseg, lf, _ = self.propagators(Gw)
+        P = Gf * Gb / Gseg
+        n_chains = self.chains_per_site(self.log_partition(Gf, lf))
+        phi_seg = n_chains[..., None, None] * P / P.sum(axis=-1, keepdims=True)  # (..., N, M)
         phi = np.zeros_like(u)
         for t in self.poly_types:
             k = self.idx[t]
@@ -161,21 +191,20 @@ class SF1D:
         phi[..., kS, :] = self.phibulk[kS] * Gw[..., kS, :]
         return phi
 
-    def norm(self, Gf):
-        """Polymer normalisation C, shape (..., 1, 1): phib/N in full equilibrium,
-        theta/(N Q) in restricted equilibrium (Q = single-chain partition function)."""
-        if self.theta is None:
-            return np.full(Gf.shape[:-2] + (1, 1), self.phib / self.N)
-        Q = Gf[..., -1, :].sum(axis=-1)
-        return (self.theta / (self.N * Q))[..., None, None]
+    def effective_chis(self, chis):
+        """Silberberg chis -> chis used with a bulk-filled wall slot:
+        chis_x + lambda1 (sum_y chi_xy phi_y^b - sum_y chi_Sy phi_y^b).
+        Zero shift in an athermal solvent."""
+        cb = self.chi @ self.phibulk
+        return chis + LAM1 * (cb - cb[self.idx["S"]])
 
     def interactions(self, phi):
         """Mixing + surface part of u_x(z) (everything except u')."""
         avgphi = self.avg(phi, self.phibulk[:, None])
         inter = np.einsum("xy,...ym->...xm", self.chi, avgphi - self.phibulk[:, None])
-        inter[..., 0] -= self.chis
+        inter[..., 0] -= self.effective_chis(self.chis)
         if self.walls == 2:
-            inter[..., -1] -= self.chis2
+            inter[..., -1] -= self.effective_chis(self.chis2)
         return inter
 
     def residual(self, x):
@@ -206,11 +235,18 @@ class SF1D:
         because phi depends on u roughly as exp(N * u)."""
         n = len(self.types)
         x = np.zeros(n * self.M) if u0 is None else np.asarray(u0, float).ravel().copy()
-        r = self.residual(x)
+        with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+            r = self.residual(x)
+        if not np.all(np.isfinite(r)):
+            raise RuntimeError("non-finite residual at the initial guess")
         for it in range(maxiter):
             if np.max(np.abs(r)) < tol:
                 break
-            dx = np.linalg.lstsq(self.jacobian(x, r), -r, rcond=None)[0]
+            with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
+                J = self.jacobian(x, r)
+            if not np.all(np.isfinite(J)):  # propagators overflow near x: give up cleanly
+                raise RuntimeError(f"non-finite Jacobian at iteration {it} (residual {np.max(np.abs(r)):.2e})")
+            dx = np.linalg.lstsq(J, -r, rcond=None)[0]
             lam, f0 = 1.0, r @ r
             while lam > 1e-6:
                 with np.errstate(over="ignore", invalid="ignore", divide="ignore"):
@@ -227,7 +263,10 @@ class SF1D:
         self.iterations = it
         self.u = x.reshape(n, self.M)
         self.phi = self.densities(self.u)
-        self.C = float(self.norm(self.propagators(np.exp(-self.u))[0]).squeeze())
+        Gf, _, _, lf, _ = self.propagators(np.exp(-self.u))
+        self.lnQ = float(self.log_partition(Gf, lf))
+        self.n_chains = float(self.chains_per_site(self.lnQ))
+        self.lnC = np.log(self.n_chains) - self.lnQ  # ln of the normalisation C = n_chains / Q
         return self
 
     def free_energy(self):
@@ -239,11 +278,11 @@ class SF1D:
         dphi = self.phi - self.phibulk[:, None]
         mix = 0.5 * np.einsum("xy,xm,ym->m", self.chi, dphi, self.avg(dphi, 0.0))
         omega = (ideal - (self.phi * self.u).sum(axis=0) + mix).sum()
-        omega -= self.chis @ self.phi[:, 0]
+        omega -= self.effective_chis(self.chis) @ self.phi[:, 0]
         if self.walls == 2:
-            omega -= self.chis2 @ self.phi[:, -1]
+            omega -= self.effective_chis(self.chis2) @ self.phi[:, -1]
         if self.theta is not None:
-            omega += self.theta / self.N * np.log(self.C * self.N / self.phib)
+            omega += self.theta / self.N * (self.lnC + np.log(self.N / self.phib))
         return float(omega)
 
     # ----------------------------------------------------------------------- #
@@ -251,18 +290,19 @@ class SF1D:
         """Adsorbed/free split, train/loop/tail decomposition and, for two
         walls, the number of bridging chains (touching both walls)."""
         Gw = np.exp(-self.u)
-        C = self.C
-        Gf, Gb, Gseg = self.propagators(Gw)
+        Gf, Gb, Gseg, lf, lb = self.propagators(Gw)
         wall_layers = [0] if self.walls == 1 else [0, self.M - 1]
         mask = np.ones(self.M)
         mask[wall_layers] = 0.0  # free chains never touch a wall layer
-        Ff, Fb, _ = self.propagators(Gw, mask=mask)
-        Af, Ab = Gf - Ff, Gb - Fb  # weights of walks that have touched layer 1
+        Ff, Fb, _, lff, lfb = self.propagators(Gw, mask=mask)
+        Ff = Ff * np.exp(lff - lf)[:, None]  # bring to the scale of Gf, Gb
+        Fb = Fb * np.exp(lfb - lb)[:, None]
+        Af, Ab = Gf - Ff, Gb - Fb  # weights of walks that have touched a wall layer
 
-        phi_tot = C * Gf * Gb / Gseg
-        with np.errstate(invalid="ignore", divide="ignore"):
-            phi_free = np.where(Gseg * mask > 0, C * Ff * Fb / Gseg, 0.0)
-            phi_tail = np.where(Gseg * mask > 0, C * (Ff * Ab + Af * Fb) / Gseg, 0.0)
+        K = self.n_chains / (Gf * Gb / Gseg).sum(axis=1, keepdims=True)  # C exp(lf + lb), per s
+        phi_tot = K * Gf * Gb / Gseg
+        phi_free = K * Ff * Fb / Gseg
+        phi_tail = K * (Ff * Ab + Af * Fb) / Gseg
         phi_ads = phi_tot - phi_free
 
         tot = phi_tot.sum(axis=0)
@@ -301,13 +341,16 @@ class SF1D:
             summary[f"train_{t}"] = float(ads_t[wall_layers].sum())
         if self.walls == 2:
             # chains per site touching wall 1 / wall 2 / both, by inclusion-exclusion
-            Q = lambda m: self.propagators(Gw, mask=m)[0][-1].sum()
+            # fraction of chains avoiding a set of layers = Q(mask) / Q
+            def frac(m):
+                g, _, _, l, _ = self.propagators(Gw, mask=m)
+                return np.exp(self.log_partition(g, l) - self.lnQ)
             m1, m2 = np.ones(self.M), np.ones(self.M)
             m1[0], m2[-1] = 0.0, 0.0
-            Qall, Qnot1, Qnot2, Qfree = Gf[-1].sum(), Q(m1), Q(m2), Ff[-1].sum()
-            bridges = C * (Qall - Qnot1 - Qnot2 + Qfree)
+            r1, r2, rfree = frac(m1), frac(m2), frac(mask)
+            bridges = self.n_chains * (1 - r1 - r2 + rfree)
             summary["bridging_chains_per_site"] = float(bridges)
-            summary["bridging_fraction_of_adsorbed_chains"] = float(bridges / (C * (Qall - Qfree)))
+            summary["bridging_fraction_of_adsorbed_chains"] = float(bridges / (self.n_chains * (1 - rfree)))
         profiles = {"z": z, "total_polymer": tot, "adsorbed": ads, "free": tot - ads,
                     "trains": train, "loops": loop, "tails": tail}
         for t in self.types:

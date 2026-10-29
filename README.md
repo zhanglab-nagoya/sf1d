@@ -12,7 +12,9 @@ polymer layers, such as polymethacrylate friction modifiers on oxide surfaces.
 - Two walls: bridging chains, interaction free energy ΔF(D) and normal pressure Π(D),
   in full equilibrium (chains exchange with the bulk) or restricted equilibrium
   (fixed adsorbed amount)
-- Robust damped-Newton solver; dependencies are only NumPy and SciPy
+- Standard Scheutjens–Fleer conventions, verified against
+  [Namics](https://github.com/leermakers/Namics) to ~1e-11 ([comparison](comparison/namics/README.md))
+- Robust damped-Newton solver with rescaled propagators; dependencies are only NumPy and SciPy
 
 ## Install
 
@@ -48,19 +50,18 @@ See [docs/usage.md](docs/usage.md) for every option and output column, and
 
 **1. Anchor–buoy copolymer on one wall.** A10B90 with strongly adsorbing, poorly
 solvated anchors (χs_A = 2, χ_AS = 0.8) and a moderately solvated buoy (χ_BS = 0.4).
-The anchors stay within three layers of the wall. The buoys form a brush-like layer
-about 25 layers thick, and 79 % of adsorbed segments are in tails.
+98 % of the anchor segments sit in the wall layer. The buoys form a brush-like layer
+about 23 layers thick, and 79 % of adsorbed segments are in tails.
 
 ![Single-wall profiles](examples/output/anchor_buoy_profiles.png)
 
 **2. Anchor placement.** The same 10 % anchor content, spread out as (A1B9)×10,
-adsorbs about 700 times less than the A10B90 block. The average adsorption energy per
-segment is then barely above critical (`block_vs_distributed.json`).
+adsorbs about 65 times less than the A10B90 block (`block_vs_distributed.json`).
 
 **3. Two walls, anchor–buoy layers.** The interaction is purely repulsive, starting at
-D ≈ 38, about twice the layer thickness. In full equilibrium, chains are expelled and
-the pressure levels off near 0.01 kT/a³. With the amount frozen (restricted), it rises
-to about 0.7 kT/a³ at D = 5. Bridging appears only below D ≈ 15.
+D ≈ 40, about twice the layer thickness. In full equilibrium, chains are expelled and
+the pressure levels off near 0.015 kT/a³. With the amount frozen (restricted), it rises
+to about 0.7 kT/a³ at D = 6. Bridging appears only below D ≈ 16.
 
 ![Gap scan, anchor-buoy](examples/output/gap_scan.png)
 
@@ -80,12 +81,16 @@ pytest
 The tests compare against exact results and thermodynamic identities:
 
 - monomer adsorption and interfacial tension (exact Langmuir-type results)
-- the critical adsorption energy χs_c = ln(6/5), and its approach with chain length
+- the critical adsorption energy χs_c = ln(6/5) − χ/6, and its approach with chain length
 - bulk recovery and incompressibility
 - stationarity of the free energy (finite-difference derivatives with respect to χs and χ)
 - distant walls giving 2γ, and restricted equilibrium reproducing full equilibrium
 - consistency of the train/loop/tail decomposition and the bridge count
+- no overflow for long chains in restricted equilibrium
 - the qualitative homopolymer gap-scan trends of Scheutjens & Fleer (1985)
+
+With `NAMICS=/path/to/namics pytest`, six further tests compare against
+[Namics](comparison/namics/README.md); otherwise they are skipped.
 
 ## Scope and limitations
 
@@ -94,6 +99,11 @@ right but not good-solvent scaling exponents. It assumes the layer has equilibra
 which strongly adsorbing polymers may not do (O'Shaughnessy & Vavylonis 2003). It
 treats every species as one lattice site, and it gives no dynamics or friction. See
 [docs/theory.md](docs/theory.md#limitations).
+
+## Changes
+
+See [CHANGELOG.md](CHANGELOG.md). Version 0.2.0 switched `chis` to the standard
+Scheutjens–Fleer (Silberberg) convention; results with χ ≠ 0 differ from 0.1.0.
 
 ## License
 

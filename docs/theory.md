@@ -23,19 +23,38 @@ With two walls, z = M+1 is a second wall and the gap width is D = M layers.
 
 For segment type x (polymer types and solvent S), in units of kT:
 
-    u_x(z) = u'(z) + Σ_y χ_xy (<φ_y>(z) − φ_y^b) − χs_x δ(z,1) − χs2_x δ(z,M)
+    u_x(z) = u'(z) + Σ_y χ_xy (<φ_y>₀(z) − φ_y^b) − χs_x δ(z,1) − χs2_x δ(z,M)
 
 - u'(z) is the Lagrange field that enforces incompressibility, Σ_x φ_x(z) = 1.
 - χ_xy are Flory–Huggins parameters (symmetric, zero diagonal).
-- χs_x is the adsorption exchange parameter of segment x relative to solvent
-  (Silberberg convention): χs > 0 means x is preferred over solvent in the wall layer.
-  The solvent has χs = 0 by definition. χs2 applies to the second wall (default: χs).
-- In the mixing term, a wall's neighbour slot is counted as bulk (φ_y = φ_y^b), so a
-  wall exerts no force beyond χs. With this convention the critical adsorption energy
-  of long chains in an athermal solvent is χs_c = −ln(1 − λ₁) = ln(6/5) ≈ 0.182, the
-  textbook cubic-lattice value.
+- <·>₀ is the site average with the wall slot **empty** (no polymer or solvent there),
+  as in the original Scheutjens–Fleer model and in Namics.
+- χs_x is the Silberberg adsorption exchange parameter of segment x relative to solvent:
+  χs > 0 means x is preferred over solvent in the wall layer, and the solvent has χs = 0.
+  In models where the wall is a lattice component W, χs_x = −λ₁(χ_xW − χ_SW).
+  χs2 applies to the second wall (default: χs).
 
 The bulk has u = 0 for every species.
+
+Because a wall contact replaces a solvent contact, poor solvent quality itself drives
+adsorption. For long chains at infinite dilution, the critical adsorption energy is
+
+    χs_c = −ln(1 − λ₁) − λ₁ χ = ln(6/5) − χ/6
+
+(0.182 in an athermal solvent, 0.099 at the Θ point χ = ½); the tests check this.
+
+**Implementation note.** Internally the mixing term fills the wall slot with bulk
+(<·> rather than <·>₀) and uses a shifted adsorption energy
+
+    χs_eff,x = χs_x + λ₁ (Σ_y χ_xy φ_y^b − Σ_y χ_Sy φ_y^b)
+
+which reproduces the equations above exactly: the two differ only by a type-independent
+term that u' absorbs. `SF1D.effective_chis` returns the shifted values.
+
+> **Changed in 0.2.0.** Version 0.1.0 used the bulk-filled wall slot *without* the shift,
+> so its χs was not the Silberberg parameter whenever χ ≠ 0 (adsorption was weaker
+> than in standard SF calculations with the same χs). Results are unchanged for athermal
+> solvents.
 
 ## Chain statistics
 
@@ -49,7 +68,10 @@ with G = 0 at walls. The volume fraction of segment s is
 
     φ(z, s) = C G(z, s|1) G(z, s|N) / G_t(s)(z)
 
-and φ_x(z) sums φ(z, s) over all s of type x. The solvent is monomeric:
+and φ_x(z) sums φ(z, s) over all s of type x. Propagators are rescaled at every step and
+the scale factors carried as logarithms. Since Σ_z G(z,s|1) G(z,s|N) / G_t(s)(z) = Q for
+every s, densities follow from the scaled arrays without ever forming Q itself, so long,
+strongly adsorbed chains cannot overflow. The solvent is monomeric:
 φ_S(z) = φ_S^b G_S(z).
 
 **Normalisation.**
@@ -79,7 +101,7 @@ backtracking line search. It typically converges in 10–30 steps from u = 0.
 The grand potential per lattice site of wall area, in kT and relative to bulk, is
 
     Ω = Σ_z [ −(φ_p − φ_b)/N − (φ_S − φ_S^b) − Σ_x φ_x u_x + ½ Σ_xy χ_xy δφ_x <δφ_y>₀ ]
-        − Σ_x χs_x φ_x(1) − Σ_x χs2_x φ_x(M)            (second term: two walls only)
+        − Σ_x χs_eff,x φ_x(1) − Σ_x χs2_eff,x φ_x(M)    (second term: two walls only)
 
 with δφ = φ − φ^b and <·>₀ the site average with wall slots set to zero. Its stationary
 point reproduces the SCF equations above; the tests check this by finite differences
@@ -88,7 +110,10 @@ mixing term).
 
 - One wall: Ω is the interfacial tension γ (kT/a²).
 - Restricted equilibrium: the free energy is A = Ω + (θ/N) ln(C N / φ_b), which equals
-  Ω when θ takes its full-equilibrium value.
+  Ω when θ takes its full-equilibrium value. Both polymer and solvent are referenced to
+  the reservoir (bulk at φ_b), with which the solvent keeps exchanging. Codes that
+  rescale the bulk with the restricted amount, such as Namics, report a free energy
+  with a different reference; see [the Namics comparison](../comparison/namics/README.md).
 - Two walls: the interaction free energy is ΔF(D) = Ω(D) − γ₁ − γ₂, and the normal
   pressure is Π(D) = −dΔF/dD (central differences over the scanned gaps), in kT/a³.
   Π > 0 is repulsive.
@@ -110,6 +135,12 @@ the adsorbed ones. Following the standard SF decomposition:
 With two walls, chains touching wall 1, wall 2, or both are counted by inclusion–exclusion
 over propagators that forbid layer 1, layer M, or both. Chains touching both walls are
 **bridges**.
+
+## Verification
+
+Beyond the exact limits in the test suite, sf1d agrees with Namics (the Wageningen SF
+code) to about 1e-11 in profiles, adsorbed amounts, interfacial tensions and ΔF(D) in
+both full and restricted equilibrium: see [comparison/namics](../comparison/namics/README.md).
 
 ## Limitations
 

@@ -83,6 +83,14 @@ res["restricted"]["D"], res["restricted"]["Pi"]
 
 `solve(u0=...)` accepts a previous `m.u` as a warm start (same M).
 
+## Using the same parameters in Namics
+
+`chis` is the Silberberg χs of the standard Scheutjens–Fleer model, so values carry
+over to Namics and the literature directly: `--chis A=v` corresponds to a wall segment
+`Si` with `mon : A : chi_Si : −6v`. The full mapping, and how to compare
+restricted-equilibrium free energies, is in
+[comparison/namics/README.md](../comparison/namics/README.md).
+
 ## Practical notes
 
 - Choose the segment size first, e.g. one methacrylate monomer with its side chain, or
