@@ -1,0 +1,29 @@
+; NVT equilibration for bulk liquid/melt boxes (step0/step1).
+define                  = -DLOPLS
+integrator              = md
+dt                      = 0.002
+nsteps                  = {nvt_nsteps}
+continuation            = no
+constraint_algorithm    = lincs
+constraints             = h-bonds
+
+cutoff-scheme  = Verlet
+coulombtype    = PME
+rvdw           = 1.1
+rcoulomb       = 1.1
+rlist          = 1.1
+pbc            = xyz
+
+tcoupl      = v-rescale
+tc-grps     = System
+tau_t       = 1.0
+ref_t       = {temperature_K}
+
+gen_vel     = yes
+gen_temp    = {temperature_K}
+gen_seed    = -1
+
+nstxout     = 0
+nstvout     = 0
+nstenergy   = 500
+nstlog      = 500

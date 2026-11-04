@@ -1,0 +1,25 @@
+"""chi/chis-from-MD pipeline for sf1d (see ../forcefield/chi_chis_from_md.md
+for the plan this implements, and README.md in this directory for what's
+actually runnable today vs. design-only).
+
+    cd pipeline
+    snakemake --use-conda -c 4 segment_volume   # the one fully-wired target
+
+Everything downstream of segment_volume (chi, chis, sf1d_predict) has real
+rules but unmet dependencies (vacuum_ref, step 2 entirely) -- Snakemake will
+correctly report the gap rather than silently skip it.
+"""
+
+configfile: "config.yaml"
+
+
+include: "rules/common.smk"
+include: "rules/step0_step1_bulk.smk"
+include: "rules/step2_chis.smk"
+include: "rules/step3_validate.smk"
+
+
+rule all:
+    """Default target: only what's actually wired up end-to-end today."""
+    input:
+        "results/segment_volume.yaml",

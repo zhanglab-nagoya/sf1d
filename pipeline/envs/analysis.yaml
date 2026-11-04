@@ -1,0 +1,14 @@
+name: sf1d-pipeline-analysis
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - scipy
+  - pandas
+  - pyyaml
+# sf1d itself (needed by scripts/sf1d_predict.py) is not pinned here, since
+# a relative editable install path in this env spec is fragile under
+# snakemake --use-conda. Run `pip install -e ../../..` into this env once
+# it's created (find it with `snakemake --list-conda-envs`), or just use
+# whatever env already has sf1d installed (e.g. base, per CLAUDE.md).

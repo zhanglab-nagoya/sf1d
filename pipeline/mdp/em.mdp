@@ -1,0 +1,13 @@
+; Energy minimization for bulk liquid/melt boxes (step0/step1).
+define      = -DLOPLS
+integrator  = steep
+emtol       = 100.0
+emstep      = 0.01
+nsteps      = {em_nsteps}
+
+cutoff-scheme  = Verlet
+coulombtype    = PME
+rvdw           = 1.1
+rcoulomb       = 1.1
+rlist          = 1.1
+pbc            = xyz

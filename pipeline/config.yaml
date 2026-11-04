@@ -1,0 +1,35 @@
+# Config for the chi/chis-from-MD Snakemake pipeline.
+# See pipeline/README.md for what each stage does and forcefield/chi_chis_from_md.md
+# for the underlying plan this implements.
+
+forcefield_dir: "../forcefield"
+
+temperature_K: 300
+pressure_bar: 1.0
+
+# Step 0+1: bulk liquid / melt boxes (GROMACS).
+# oligomer_length is repeat units per capped oligomer (CH3-[monomer]_n-CH3n),
+# used only to get per-monomer molar volume and cohesive energy density —
+# not the real chain length (see docs/usage.md on segment-size mapping).
+bulk:
+  oligomer_length: 10
+  n_chains:
+    HEX: 500 # hexadecane "melt" = the pure solvent itself
+    ST: 40
+    MMA: 60
+  box_nm: [6.0, 6.0, 6.0] # generous initial box; NPT compresses to the real density
+  em_nsteps: 5000
+  nvt_ps: 100
+  npt_ps: 500 # placeholder — extend substantially for real CED/density statistics
+
+# Step 2: dilute slab adsorption near the Fe2O3 substrate (LAMMPS).
+# Not implemented yet — see pipeline/rules/step2_chis.smk.
+slab:
+  substrate_data: "../forcefield/substrate/fe2o3.data"
+  dilute_phi: 0.01 # target dilute mole fraction of the fragment in hexadecane
+
+# Step 3: validate sf1d against MD for the real sequences.
+validate:
+  sequences:
+    stat: null # TODO: real PSMA-stat-PMMA composition/degree of polymerization
+    block: null # TODO: real PSMA-block-PMMA composition/degree of polymerization

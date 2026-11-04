@@ -1,0 +1,34 @@
+; NPT production for bulk liquid/melt boxes (step0/step1): the density and
+; intermolecular energy averaged over this run give a^3 (step0) and the
+; cohesive energy density / solubility parameter (step1).
+define                  = -DLOPLS
+integrator              = md
+dt                      = 0.002
+nsteps                  = {npt_nsteps}
+continuation            = yes
+constraint_algorithm    = lincs
+constraints             = h-bonds
+
+cutoff-scheme  = Verlet
+coulombtype    = PME
+rvdw           = 1.1
+rcoulomb       = 1.1
+rlist          = 1.1
+pbc            = xyz
+
+tcoupl      = v-rescale
+tc-grps     = System
+tau_t       = 1.0
+ref_t       = {temperature_K}
+
+pcoupl          = c-rescale
+pcoupltype      = isotropic
+tau_p           = 2.0
+ref_p           = {pressure_bar}
+compressibility = 4.5e-5
+
+gen_vel     = no
+
+nstxout     = 0
+nstenergy   = 500
+nstlog      = 500
