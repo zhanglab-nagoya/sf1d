@@ -22,5 +22,6 @@ rule sf1d_predict:
         "results/sf1d_predictions.yaml",
     conda:
         "../envs/analysis.yaml"
+    localrule: True
     script:
         "../scripts/sf1d_predict.py"

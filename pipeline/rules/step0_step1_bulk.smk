@@ -29,6 +29,7 @@ rule build_itp_oligomer:
         species="ST|MMA",
     conda:
         "../envs/polyply.yaml"
+    localrule: True
     params:
         seq=lambda wc: " ".join(["CH3"] + [wc.species] * N_OLIGO + ["CH3n"]),
         name=lambda wc: f"{wc.species}{N_OLIGO}",
@@ -43,6 +44,7 @@ rule bulk_itp_hex:
         f"{FF_DIR}/solvent/hexadecane.itp",
     output:
         f"{RES}/HEX/HEX.itp",
+    localrule: True
     shell:
         "cp {input} {output}"
 
@@ -54,6 +56,7 @@ rule bulk_top:
         nb=f"{FF_DIR}/custom-ffnonbonded.itp",
     output:
         top=f"{RES}/{{species}}/topol.top",
+    localrule: True
     params:
         n_chains=lambda wc: config["bulk"]["n_chains"][wc.species],
         mol=lambda wc: molname(wc.species),
@@ -82,6 +85,7 @@ rule bulk_pack:
         gro=f"{RES}/{{species}}/box0.gro",
     conda:
         "../envs/polyply.yaml"
+    localrule: True
     params:
         box=config["bulk"]["box_nm"],
     shell:
@@ -179,6 +183,7 @@ rule segment_volume:
         n_oligo=N_OLIGO,
     conda:
         "../envs/analysis.yaml"
+    localrule: True
     script:
         "../scripts/segment_volume.py"
 
@@ -193,6 +198,7 @@ rule vacuum_ref:
     mirroring bulk_* above but with n_chains=1 and a big (~10 nm) box."""
     output:
         touch("results/bulk/{species}/vacuum_ref.TODO"),
+    localrule: True
     shell:
         "echo 'vacuum reference not implemented — see rule docstring' && false"
 
@@ -209,5 +215,6 @@ rule solubility_chi:
         "results/chi.yaml",
     conda:
         "../envs/analysis.yaml"
+    localrule: True
     script:
         "../scripts/solubility_chi.py"

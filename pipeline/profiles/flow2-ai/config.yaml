@@ -1,0 +1,95 @@
+# Snakemake workflow-profile for running pipeline/ on flow2-ai
+# (Flow 2.0 / 不老・弐, Nagoya University Information Technology Center;
+# PBS Professional scheduler). See README.md in this directory for setup
+# (conda env for snakemake/polyply/intermol/packmol -- none of these are
+# site modules) and for what this profile does and does not cover yet.
+#
+# Usage (from pipeline/, on flow2-ai):
+#   snakemake --workflow-profile profiles/flow2-ai \
+#       --software-deployment-method conda -c 2 segment_volume
+#
+# Orchestrator (this snakemake process) runs on the flow2-ai login node,
+# which caps the submitting user at 9 cores / 32 GB / 72h CPU (see flow2-ai's
+# own ~/CLAUDE.md, section 0.2) -- keep -c / local-cores low; it only farms
+# jobs out via qsub, it doesn't need many cores itself.
+
+executor: cluster-generic
+
+cluster-generic-submit-cmd: python profiles/flow2-ai/submit.py
+cluster-generic-cancel-cmd: qdel
+cluster-generic-cancel-nargs: 50
+cluster-generic-status-cmd: profiles/flow2-ai/status.sh
+
+jobscript: profiles/flow2-ai/pbs-jobscript.sh
+
+restart-times: 0
+max-jobs-per-second: 10
+max-status-checks-per-second: 1
+local-cores: 2
+latency-wait: 60
+jobs: 50
+keep-going: True
+rerun-incomplete: True
+printshellcmds: True
+scheduler: greedy
+
+# Module loading happens unconditionally in pbs-jobscript.sh (gromacs +
+# lammps both need oneapi+impi loaded first), not through Snakemake's
+# envmodules: mechanism -- this pipeline's existing rules don't declare
+# envmodules: blocks (unlike the sibling generate-aa-pama profiles this one
+# is modeled on), so use-envmodules would do nothing here.
+use-envmodules: False
+
+# Only the real GROMACS/LAMMPS dynamics rules go through PBS; everything
+# else (build_itp_oligomer, bulk_itp_hex, bulk_top, bulk_pack,
+# segment_volume, vacuum_ref, solubility_chi, sf1d_predict) is marked
+# `localrule: True` in the .smk files themselves and runs directly on the
+# login node -- mirrors the "render_*/copy_* are localrule: True" convention
+# in ../../../2026-10-28-generate-aa-pama/workflow/profiles/{isys,rccs}.
+# bulk_density (gmx energy, cheap but needs the gromacs module) is kept as a
+# tiny PBS job rather than local, so it doesn't need gmx_mpi loaded
+# interactively in the login shell.
+default-resources:
+  - queue="t1-share"
+  - nnumas=1
+  - ompthreads=48
+  - time="01:00:00"
+
+set-resources:
+  # Tiny: just `echo Density | gmx energy`, no dynamics.
+  bulk_density:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 4
+    time: "00:10:00"
+
+  # Systems here are the step0/step1 bulk liquid/melt boxes (config.yaml's
+  # bulk.box_nm, generous 6x6x6 nm, a few hundred to ~1k molecules) -- NOT
+  # the full Fe2O3-substrate slab systems. Walltimes below are placeholders,
+  # not yet benchmarked on flow2-ai; pad further if a job gets killed before
+  # finishing (check logs/bulk_*/*.out, then qstat -f <id> for Exit_status).
+  bulk_em:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "00:30:00"
+  bulk_nvt:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "02:00:00"   # config.yaml bulk.nvt_ps = 100 ps
+  bulk_npt:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "04:00:00"   # config.yaml bulk.npt_ps = 500 ps
+
+# Step 2 (rules/step2_chis.smk) is design-only -- no rules exist yet, so
+# there is nothing to size here. Once it's implemented: the Fe2O3 slab
+# systems (forcefield/substrate/fe2o3.data, ~127k atoms) are LAMMPS jobs
+# (lmp_mpi, module `lammps` -- already loaded in pbs-jobscript.sh), and will
+# very likely need a full exclusive node (t1-single or t1-small -- `-l
+# select=<N>:mpiprocs=<ranks>:ompthreads=<threads>`, do NOT add ncpus/mem
+# yourself, PBS expands the full node automatically), not the t1-share tier
+# used above for the small bulk boxes. Don't guess sizing before that stage
+# is actually written and run once.

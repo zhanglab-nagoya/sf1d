@@ -40,6 +40,17 @@ directly, assuming `~/opt/gromacs-2026.0/bin` is on `PATH` (it has no plain
 here) and using `../forcefield/oplsaa.ff` (the L-OPLS-patched copy) rather
 than the stock installed force field, which lacks that patch.
 
+### On flow2-ai (HPC)
+
+`profiles/flow2-ai/` runs the same rules on Nagoya University's Flow 2.0
+supercomputer (PBS Professional) instead of this workstation — see
+`profiles/flow2-ai/README.md` for setup and scope. Only step 0/1's bulk
+GROMACS rules go through PBS there today; step 2 has no rules yet.
+
+```bash
+snakemake --workflow-profile profiles/flow2-ai --software-deployment-method conda segment_volume
+```
+
 ## Design notes
 
 - **Species for step0/step1:** `HEX` (hexadecane, already a complete itp —
