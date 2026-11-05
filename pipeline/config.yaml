@@ -56,12 +56,71 @@ bulk:
   # settle (longer, floppier chains).
   npt_ps: 300
   npt_discard_ps: 100
+  # Vacuum single-molecule reference (for the cohesive-energy-density split
+  # in scripts/solubility_chi.py). Reuses mdp/nvt.mdp verbatim (same PME,
+  # same 1.1 nm cutoffs as the liquid-phase runs) on the single EM'd
+  # molecule in its existing 5 nm box -- confirmed live 2026-11-05 this
+  # matters: an earlier attempt at a "cleaner" plain-cutoff vacuum
+  # treatment (no PME) gave ST10/MMA10 *lower* solubility parameters than
+  # plain hexadecane, which is physically backwards for ester-containing
+  # oligomers -- the mismatched nonbonded method between vacuum and liquid
+  # biased the subtraction, not the physics. Single-molecule periodic
+  # images at 5 nm separation are negligible, so same-method is what
+  # actually matters here, not strict non-periodicity. vacuum_nvt_ps only
+  # needs to be long enough to thermally sample one molecule's own
+  # conformational energy at temperature_K, not to equilibrate a box.
+  vacuum_nvt_ps: 100
+  vacuum_discard_ps: 20
 
 # Step 2: dilute slab adsorption near the Fe2O3 substrate (LAMMPS).
-# Not implemented yet — see pipeline/rules/step2_chis.smk.
+# The dilute-adsorption rules themselves are not implemented yet -- see
+# pipeline/rules/step2_chis.smk -- but the substrate they'll adsorb onto is
+# now built from scratch (pipeline/rules/step2_substrate.smk) instead of
+# read from a pre-built, opaque-provenance .data file, using the same
+# CIF -> ASE cut/tile/trim -> INTERFACE FF charges/LJ -> LAMMPS CG-minimize
+# methodology as ../2026-11-05-pama-in-nanogap's 299_substrate_creation
+# stage (see forcefield/substrate/README.md for the full method/force-field
+# provenance). substrate_data now points at that generated output, not the
+# legacy forcefield/substrate/fe2o3.data (kept only for reference/diffing).
 slab:
-  substrate_data: "../forcefield/substrate/fe2o3.data"
+  substrate_data: "results/substrate/substrate_minimized.data"
   dilute_phi: 0.01 # target dilute mole fraction of the fragment in hexadecane
+  # Deliberately much smaller than the nanogap repo's production slab
+  # (16.0 x 15.5 x 5.0 nm, 126720 atoms, sized for a confined single-polymer
+  # shear simulation with a ~168 A solvent column) -- step 2 only needs a
+  # flat patch big enough that a dilute fragment's own periodic images
+  # don't interact laterally, and thick enough (>~2x the 10 A LJ/Coulomb
+  # cutoff, plus buffer) that the two surfaces don't feel each other. ~8000
+  # atoms at this size vs. 126720 -- cheap to build/minimize regardless,
+  # the real cost saving is in the (not yet implemented) downstream MD this
+  # substrate will be merged into. Revisit if step2_chis.smk's real rules
+  # turn out to need a bigger footprint.
+  substrate_creation:
+    cif_file: "9015964.cif" # hematite, COD https://www.crystallography.net/cod/9015964.html
+    surface_miller: [0, 0, 1]
+    layers: 12 # initial atomic layers cut before in-plane tiling (same as the nanogap repo -- plenty of margin for either target thickness)
+    target_nm: [5.0, 5.0, 3.0] # x, y footprint, z thickness, pre-relaxation
+    vacuum: 10.0 # A of z vacuum added for 2D periodicity before relaxation
+    masses:
+      Fe: 55.845
+      O: 15.9994
+    # INTERFACE force field for Fe2O3 (OPLS-AA-compatible LJ combination
+    # rules/units): Kanhaiya, Krishan, et al. "Accurate force fields for
+    # atomistic simulations of oxides, hydroxides, and organic hybrid
+    # materials up to the micrometer scale." JCTC 19.22 (2023): 8293-8322.
+    charges:
+      Fe: 1.74
+      O: -1.16
+    pair_coeffs:
+      Fe: {epsilon: 0.3, sigma: 1.853}
+      O: {epsilon: 0.2, sigma: 3.127}
+    cutoff: 10.0
+    kspace_accuracy: 1.0e-4
+    minimize:
+      etol: 1.0e-8
+      ftol: 1.0e-8
+      maxiter: 1000
+      maxeval: 10000
 
 # Step 3: validate sf1d against MD for the real sequences.
 validate:

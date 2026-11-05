@@ -1,9 +1,10 @@
 """Step 2: chis_A, chis_B from dilute ST-analog/MMA-analog adsorption near
-the Fe2O3 substrate (forcefield/substrate/fe2o3.data).
+the Fe2O3 substrate (results/substrate/substrate_minimized.data, built
+from scratch by step2_substrate.smk -- see forcefield/substrate/README.md).
 
 STATUS: design only, not implemented. Unlike step0/step1 (plain GROMACS
 liquid boxes), this needs a GROMACS-build-then-LAMMPS-convert-then-merge
-pipeline, because fe2o3.data is a LAMMPS data file
+pipeline, because the substrate is a LAMMPS data file
 (pair_style lj/cut/coul/long) while the organic fragment + hexadecane side
 is naturally built and parametrized in GROMACS (OPLS-AA/L-OPLS, PME).
 zhanglab-nagoya/2026-01-26-generate-aa-pama already solves exactly this
@@ -26,10 +27,10 @@ and hexadecane itself as the reference for the correction term):
 2. convert_to_lammps(species)          - GROMACS singlepoint + canonicalize
    + write LAMMPS data (atom types/charges/pair coeffs consistent with
    oplsaa.ff's LJ/Coulomb -- this is the part that needs real care, since
-   fe2o3.data uses lj/cut/coul/long while GROMACS used PME; the long-range
-   treatment has to be reconciled, not just the file format).
+   the substrate uses lj/cut/coul/long while GROMACS used PME; the
+   long-range treatment has to be reconciled, not just the file format).
 3. merge_with_substrate(species)       - concatenate the converted organic
-   system with forcefield/substrate/fe2o3.data, offsetting atom/molecule
+   system with results/substrate/substrate_minimized.data, offsetting atom/molecule
    IDs and extending the box in z to fit both.
 4. minimize / nvt / npt slab(species)  - LAMMPS equilibration near the
    surface.

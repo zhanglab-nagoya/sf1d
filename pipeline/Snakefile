@@ -3,11 +3,12 @@ for the plan this implements, and README.md in this directory for what's
 actually runnable today vs. design-only).
 
     cd pipeline
-    snakemake --use-conda -c 4 segment_volume   # the one fully-wired target
+    snakemake --use-conda -c 8 segment_volume   # step 0, fully wired
+    snakemake --use-conda -c 8 results/chi.yaml # step 0 + step 1, fully wired
 
-Everything downstream of segment_volume (chi, chis, sf1d_predict) has real
-rules but unmet dependencies (vacuum_ref, step 2 entirely) -- Snakemake will
-correctly report the gap rather than silently skip it.
+step2_substrate.smk (the Fe2O3 substrate build) is scaffolded but not yet
+run end-to-end; step2_chis.smk (the dilute-adsorption chis themselves) is
+still design-only.
 """
 
 configfile: "config.yaml"
@@ -15,6 +16,7 @@ configfile: "config.yaml"
 
 include: "rules/common.smk"
 include: "rules/step0_step1_bulk.smk"
+include: "rules/step2_substrate.smk"
 include: "rules/step2_chis.smk"
 include: "rules/step3_validate.smk"
 

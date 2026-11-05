@@ -1,0 +1,27 @@
+# Relax the tiled slab under the INTERFACE FF (Kanhaiya et al. 2023, JCTC
+# 19:8293): CG minimization with the lateral box allowed to relax to zero
+# lateral stress (z fixed). This is a 3D-periodic, bulk-like relaxation of
+# the slab cell -- not yet the 2D-periodic/slab-corrected setup the nanogap
+# stages (530+) apply once this substrate is placed in a confined geometry.
+units real
+atom_style full
+boundary p p p
+
+pair_style lj/cut/coul/long {{ params.cutoff }}
+kspace_style pppm {{ params.kspace_accuracy }}
+
+read_data slab_with_coeffs.data
+
+neighbor 2.0 bin
+neigh_modify every 1 delay 0 check yes
+
+thermo 50
+thermo_style custom step pe etotal press
+
+min_style cg
+fix relax_xy all box/relax x 0.0 y 0.0 couple xy
+minimize {{ params.etol }} {{ params.ftol }} {{ params.maxiter }} {{ params.maxeval }}
+
+write_data substrate_minimized.data
+write_data substrate_minimized_nocoeff.data nocoeff
+write_restart substrate_minimized.restart

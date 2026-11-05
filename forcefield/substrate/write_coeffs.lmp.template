@@ -1,0 +1,19 @@
+# Inject INTERFACE FF pair coefficients (Kanhaiya et al. 2023, JCTC 19:8293)
+# into the charge-only data file written by write_lammps_charge_data.py.
+units real
+atom_style full
+boundary p p p
+
+read_data slab_charged.data
+
+mass 1 {{ params.mass_fe }}
+mass 2 {{ params.mass_o }}
+
+pair_style lj/cut/coul/long {{ params.cutoff }}
+pair_modify mix geometric
+kspace_style pppm {{ params.kspace_accuracy }}
+
+pair_coeff 1 1 {{ params.eps_fe }} {{ params.sigma_fe }}
+pair_coeff 2 2 {{ params.eps_o }} {{ params.sigma_o }}
+
+write_data slab_with_coeffs.data

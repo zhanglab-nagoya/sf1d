@@ -3,17 +3,35 @@ capped ST/MMA oligomer "melt" boxes, GROMACS em -> nvt -> squeeze -> npt,
 then read off density (step0) and cohesive energy density / solubility
 parameter (step1).
 
-STATUS: runs end-to-end (segment_volume target). The nvt->squeeze->npt
-chain and run lengths were validated via standalone gmx_mpi benchmarking
-(not yet re-confirmed through this exact rule chain) on 2026-11-05: HEX
-and ST10 both reach/overshoot their real liquid density within the
-squeeze phase and relax to a stable plateau within ~30 ps of switching
-back to ref_p=1 bar (HEX: ~748 kg/m^3 vs. a ~770 kg/m^3 literature
-reference -- a normal few-percent OPLS/L-OPLS deviation, not a red flag).
-The vacuum single-molecule reference needed for a correct
-cohesive-energy-density split (see solubility_chi rule below) is still a
-real TODO, not just "needs longer runs": the shell command there must be
-reviewed, not just executed, before use.
+STATUS: runs end-to-end through both segment_volume (step0) and chi.yaml
+(step1) targets. The nvt->squeeze->npt chain and run lengths were
+validated via standalone gmx_mpi benchmarking (not yet re-confirmed
+through this exact rule chain) on 2026-11-05: HEX and ST10 both
+reach/overshoot their real liquid density within the squeeze phase and
+relax to a stable plateau within ~30 ps of switching back to ref_p=1 bar
+(HEX: ~748 kg/m^3 vs. a ~770 kg/m^3 literature reference -- a normal
+few-percent OPLS/L-OPLS deviation, not a red flag).
+
+solubility_chi's cohesive-energy-density numbers (2026-11-05 run:
+delta_HEX=14.06, delta_ST=11.44, delta_MMA=14.12 MPa^0.5, chi_AS=0.83,
+chi_BS~0) carry real uncertainty worth flagging before trusting them
+quantitatively: delta_ST < delta_HEX is at least directionally plausible
+(ST10's comb architecture -- a C18 side chain hanging off every backbone
+unit -- packs less efficiently than linear hexadecane), but chi_AS (the
+alkyl-rich, "should mix well with hexadecane" species) coming out larger
+than chi_BS (the polar-ester MMA) is the opposite of naive "like dissolves
+like" intuition. The likely cause is under-sampling, not a bug in the
+CED/chi arithmetic itself (same-nonbonded-method vacuum/liquid comparison
+confirmed correct -- see vacuum_nvt's docstring for the earlier,
+wrong-methodology attempt this replaced): bulk_npt's 200 ps production
+window may be too short for ST10's floppier chains to reach a
+conformationally representative ensemble, even though density itself
+visibly plateaus much faster. This is exactly the known limitation
+forcefield/chi_chis_from_md.md's step 1 already calls out ("primary,
+cheap" solubility-parameter route, with alchemical TI/BAR and single-chain
+R_g matching as listed refinements) -- not a reason to block on this
+before moving on, but a reason not to feed these specific numbers into
+sf1d without revisiting sampling length first.
 """
 
 RES = "results/bulk"
@@ -387,6 +405,20 @@ rule bulk_density:
         'echo "Density" | gmx_mpi energy -f {input.edr} -b {params.discard_ps} -o {output.xvg}'
 
 
+rule bulk_potential:
+    """Step 1 input: average liquid-phase potential energy (same production
+    window as bulk_density) -- U_total/n_chains feeds the cohesive-energy-
+    density split in scripts/solubility_chi.py."""
+    input:
+        edr=f"{RES}/{{species}}/npt.edr",
+    output:
+        xvg=f"{RES}/{{species}}/liquid_potential.xvg",
+    params:
+        discard_ps=config["bulk"]["npt_discard_ps"],
+    shell:
+        'echo "Potential" | gmx_mpi energy -f {input.edr} -b {params.discard_ps} -o {output.xvg}'
+
+
 rule segment_volume:
     """Step 0: a^3 from HEX density, and ST/MMA-per-lattice-segment ratio
     from the oligomer melt densities + known molar masses."""
@@ -404,31 +436,82 @@ rule segment_volume:
         "../scripts/segment_volume.py"
 
 
-rule vacuum_ref:
-    """TODO (review before trusting): single isolated molecule, same force
-    field, large box, no PBC images close enough to interact — gives the
-    intramolecular reference energy needed to split liquid U_total into
-    U_intra + U_inter for the cohesive-energy-density (step 1) calculation.
-    Not yet wired up to bulk_em/nvt/npt; needs its own minimal mdp (vacuum
-    electrostatics, e.g. plain cutoff, not PME) and its own small rule chain
-    mirroring bulk_* above but with n_chains=1 and a big (~10 nm) box."""
+rule vacuum_nvt:
+    """Thermal average of the single molecule's intramolecular-only
+    potential energy at temperature_K -- the vacuum-reference half of the
+    cohesive-energy-density split (bulk_potential is the liquid half).
+    Reuses mdp/nvt.mdp VERBATIM (same PME, same 1.1 nm cutoffs as the
+    liquid-phase runs) on single_em.gro (already cleanly resolved -- see
+    mdp/em.mdp), not a separate "plain cutoff" vacuum treatment -- confirmed
+    live 2026-11-05 that mismatch matters: an earlier attempt gave
+    ST10/MMA10 *lower* solubility parameters than plain hexadecane, which
+    is physically backwards for ester-containing oligomers, because the
+    different nonbonded method biased the subtraction. Single-molecule
+    periodic images at this 5 nm box's separation are negligible, so
+    same-method-as-the-liquid is what actually matters, not strict
+    non-periodicity."""
+    input:
+        gro=f"{RES}/{{species}}/single_em.gro",
+        top=f"{RES}/{{species}}/single.top",
+        mdp="mdp/nvt.mdp",
     output:
-        touch("results/bulk/{species}/vacuum_ref.TODO"),
-    localrule: True
+        gro=f"{RES}/{{species}}/vacuum_nvt.gro",
+        edr=f"{RES}/{{species}}/vacuum_nvt.edr",
+        tpr=f"{RES}/{{species}}/vacuum_nvt.tpr",
+    params:
+        prefix=f"{RES}/{{species}}/vacuum_nvt",
+        mdp_rendered=f"{RES}/{{species}}/vacuum_nvt.rendered.mdp",
+        nsteps=lambda wc: int(config["bulk"]["vacuum_nvt_ps"] / 0.002),
+    threads: 4
+    run:
+        render_mdp(
+            input.mdp,
+            params.mdp_rendered,
+            nvt_nsteps=params.nsteps,
+            temperature_K=config["temperature_K"],
+        )
+        shell(
+            "gmx_mpi grompp -f {params.mdp_rendered} -c {input.gro} -r {input.gro} "
+            "-p {input.top} -o {output.tpr} -maxwarn 2"
+        )
+        shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
+
+
+rule vacuum_potential:
+    """The vacuum-side half of the cohesive-energy-density split -- see
+    bulk_potential for the liquid-side half."""
+    input:
+        edr=f"{RES}/{{species}}/vacuum_nvt.edr",
+    output:
+        xvg=f"{RES}/{{species}}/vacuum_potential.xvg",
+    params:
+        discard_ps=config["bulk"]["vacuum_discard_ps"],
     shell:
-        "echo 'vacuum reference not implemented — see rule docstring' && false"
+        'echo "Potential" | gmx_mpi energy -f {input.edr} -b {params.discard_ps} -o {output.xvg}'
 
 
 rule solubility_chi:
     """Step 1: cohesive energy density -> Hildebrand solubility parameters
-    -> chi_AS, chi_BS. Depends on vacuum_ref (not implemented yet)."""
+    -> chi_AS, chi_BS."""
     input:
         segment_volume="results/segment_volume.yaml",
-        vacuum_ref=expand(
-            "results/bulk/{species}/vacuum_ref.TODO", species=BULK_SPECIES
+        liquid_potential=expand(
+            f"{RES}/{{species}}/liquid_potential.xvg", species=BULK_SPECIES
+        ),
+        vacuum_potential=expand(
+            f"{RES}/{{species}}/vacuum_potential.xvg", species=BULK_SPECIES
+        ),
+        topol=expand(f"{RES}/{{species}}/topol.top", species=BULK_SPECIES),
+        itp=expand(
+            f"{RES}/{{species}}/{{molname}}.itp",
+            zip,
+            species=BULK_SPECIES,
+            molname=[molname(sp) for sp in BULK_SPECIES],
         ),
     output:
         "results/chi.yaml",
+    params:
+        species=BULK_SPECIES,
     conda:
         "../envs/analysis.yaml"
     localrule: True

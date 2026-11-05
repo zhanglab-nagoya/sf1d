@@ -13,23 +13,27 @@ needs revisiting.
 
 | Stage | File | Status |
 |---|---|---|
-| Step 0 — segment size | `rules/step0_step1_bulk.smk` (`bulk_*`, `segment_volume`) | **Runnable.** Dry-run verified (`snakemake -n`), not yet executed. |
-| Step 1 — `chi_AS`/`chi_BS`, cohesive-energy-density route | `rules/step0_step1_bulk.smk` (`vacuum_ref`, `solubility_chi`) | **Not implemented.** `vacuum_ref` needs a real vacuum single-molecule mdp/box; `solubility_chi` raises `NotImplementedError` on purpose until then. |
-| Step 2 — `chis_A`/`chis_B`, dilute slab adsorption | `rules/step2_chis.smk` | **Design only.** Needs a GROMACS-build → LAMMPS-convert → merge-with-`fe2o3.data` pipeline; see the module docstring for the intended stages and why this wasn't fabricated blind. |
-| Step 3 — validate against MD | `rules/step3_validate.smk` | `sf1d_predict` is real (pure Python, no MD) but blocked on step 2's `results/chis.yaml`; the MD side is design-only, same status as step 2. |
-
-Nothing in this pipeline has been executed yet — only dry-run (`-n`) checked.
-Running it for real means committing real wall-clock time on this (single,
-shared) workstation; review `config.yaml`'s run lengths and box sizes first,
-they're placeholders sized for "does this even work", not for production
-statistics.
+| Step 0 — segment size | `rules/step0_step1_bulk.smk` (`bulk_*`, `segment_volume`) | **Runs end-to-end.** `a3_nm3=0.5015 nm^3`, HEX density 749.8 kg/m^3 vs. a ~770 kg/m^3 literature reference (normal few-percent OPLS/L-OPLS deviation). |
+| Step 1 — `chi_AS`/`chi_BS`, cohesive-energy-density route | `rules/step0_step1_bulk.smk` (`vacuum_nvt`, `solubility_chi`) | **Runs end-to-end**, but see that file's STATUS note on sampling-length caveats before trusting the numbers quantitatively (`chi_AS=0.83`, `chi_BS~0` as of 2026-11-05 — the chi_AS > chi_BS direction is counterintuitive and likely under-sampled, not a bug). |
+| Step 2 substrate — Fe2O3 from scratch | `rules/step2_substrate.smk` | **Runs end-to-end.** Builds `results/substrate/substrate_minimized.data` (8400 atoms, same CIF->ASE->INTERFACE-FF->LAMMPS-CG-minimize method as `../2026-11-05-pama-in-nanogap`'s `299_substrate_creation`) instead of reading the legacy, opaque-provenance `forcefield/substrate/fe2o3.data`. |
+| Step 2 chis — dilute slab adsorption | `rules/step2_chis.smk` | **Design only.** Needs a GROMACS-build → LAMMPS-convert → merge-with-substrate pipeline; see the module docstring for the intended stages and why this wasn't fabricated blind. |
+| Step 3 — validate against MD | `rules/step3_validate.smk` | `sf1d_predict` is real (pure Python, no MD) but blocked on step 2 chis' `results/chis.yaml`; the MD side is design-only, same status as step 2 chis. |
 
 ## Running it
 
 ```bash
 cd pipeline
-conda run -n snakemake snakemake --use-conda -c 4 segment_volume   # the one fully-wired target
+conda run -n snakemake snakemake --use-conda -c 8 segment_volume      # step 0
+conda run -n snakemake snakemake --use-conda -c 8 results/chi.yaml    # step 0 + step 1
+source ~/opt/lammps-22Jul2025/env.sh  # LD_LIBRARY_PATH for liblammps.so.0
+conda run -n snakemake snakemake --use-conda -c 4 results/substrate/substrate_minimized.data  # step 2 substrate
 ```
+
+The bulk GROMACS rules need `threads: 8` worth of free cores (set via `-c`)
+to get real throughput — without it Snakemake pins every `mdrun` to 1
+thread regardless of the machine's core count (bitten this exact pipeline
+once already; see `rules/step0_step1_bulk.smk`'s `bulk_squeeze`/`bulk_npt`
+history).
 
 `--use-conda` creates isolated environments from `envs/*.yaml` under
 `.snakemake/conda/` (same pattern as the user's other dated project repos —
@@ -70,8 +74,11 @@ snakemake --workflow-profile profiles/flow2-ai --software-deployment-method cond
   `polyply gen_params --help`, but not a dependency this pipeline should
   have on an unrelated sibling repo's venv).
 - **Why GROMACS for step0/1 but LAMMPS for step2:** the Fe2O3 substrate
-  (`forcefield/substrate/fe2o3.data`) only exists as a LAMMPS data file
-  (`pair_style lj/cut/coul/long`), prepared externally (Ji Ce, zhanglab) —
-  not something to rebuild from scratch in GROMACS. Step 2 has to bridge
-  the two, which is exactly what `rules/step2_chis.smk`'s docstring lays
-  out as still needing real design work.
+  (`results/substrate/substrate_minimized.data`, built by
+  `rules/step2_substrate.smk`) is a LAMMPS data file (`pair_style
+  lj/cut/coul/long`, INTERFACE force field) — GROMACS has no equivalent FF
+  for this material. Step 2 chis has to bridge the two (GROMACS-built
+  organic fragment + LAMMPS-built substrate), which is exactly what
+  `rules/step2_chis.smk`'s docstring lays out as still needing real design
+  work. `forcefield/substrate/fe2o3.data` (prepared externally, Ji Ce,
+  zhanglab) is now legacy/unused — see `forcefield/substrate/README.md`.
