@@ -16,7 +16,7 @@ needs revisiting.
 | Step 0 — segment size | `rules/step0_step1_bulk.smk` (`bulk_*`, `segment_volume`) | **Runs end-to-end.** `a3_nm3=0.5015 nm^3`, HEX density 749.8 kg/m^3 vs. a ~770 kg/m^3 literature reference (normal few-percent OPLS/L-OPLS deviation). |
 | Step 1 — `chi_AS`/`chi_BS`, cohesive-energy-density route | `rules/step0_step1_bulk.smk` (`vacuum_nvt`, `solubility_chi`) | **Runs end-to-end**, but see that file's STATUS note on sampling-length caveats before trusting the numbers quantitatively (`chi_AS=0.83`, `chi_BS~0` as of 2026-11-05 — the chi_AS > chi_BS direction is counterintuitive and likely under-sampled, not a bug). |
 | Step 2 substrate — Fe2O3 from scratch | `rules/step2_substrate.smk` | **Runs end-to-end.** Builds `results/substrate/substrate_minimized.data` (8400 atoms, same CIF->ASE->INTERFACE-FF->LAMMPS-CG-minimize method as `../2026-11-05-pama-in-nanogap`'s `299_substrate_creation`) instead of reading the legacy, opaque-provenance `forcefield/substrate/fe2o3.data`. |
-| Step 2 chis — dilute slab adsorption | `rules/step2_dilute.smk` (stage 1), `rules/step2_chis.smk` (stages 2-6) | **Partly real.** Stage 1 (`build_dilute_fragment_box`, GROMACS) runs end-to-end: a single ST-analog/MMA-analog fragment diluted in hexadecane, equilibrated to ~748 kg/m^3. Stages 2-6 (convert to LAMMPS, merge with the substrate, equilibrate, production, compute chis) are still design-only — see `step2_chis.smk`'s module docstring. |
+| Step 2 chis — dilute slab adsorption | `rules/step2_dilute.smk` (stage 1), `rules/step2_convert.smk` (stage 2), `rules/step2_chis.smk` (stages 3-6) | **Partly real.** Stage 1 (`build_dilute_fragment_box`, GROMACS) runs end-to-end: a single ST-analog/MMA-analog fragment diluted in hexadecane, equilibrated to ~748 kg/m^3. Stage 2 (`convert_to_lammps`, GROMACS->LAMMPS via InterMol) also runs end-to-end for both species, cross-checked against a GROMACS single-point energy (~0.5% agreement). Stages 3-6 (merge with the substrate, equilibrate, production, compute chis) are still design-only — see `step2_chis.smk`'s module docstring. |
 | Step 3 — validate against MD | `rules/step3_validate.smk` | `sf1d_predict` is real (pure Python, no MD) but blocked on step 2 chis' `results/chis.yaml`; the MD side is design-only, same status as step 2 chis. |
 
 ## Running it
@@ -27,7 +27,18 @@ conda run -n snakemake snakemake --use-conda -c 8 segment_volume      # step 0
 conda run -n snakemake snakemake --use-conda -c 8 results/chi.yaml    # step 0 + step 1
 source ~/opt/lammps-22Jul2025/env.sh  # LD_LIBRARY_PATH for liblammps.so.0
 conda run -n snakemake snakemake --use-conda -c 4 results/substrate/substrate_minimized.data  # step 2 substrate
+conda run -n snakemake snakemake --use-conda -c 8 results/slab/ST/npt.edr results/slab/MMA/npt.edr        # step 2 chis stage 1
+conda run -n snakemake snakemake --use-conda -c 4 results/slab/ST/converted.lmp results/slab/MMA/converted.lmp  # step 2 chis stage 2
 ```
+
+Stage 2 (`convert_to_lammps`) needs InterMol, available via `module load
+intermol` -- but *not* loaded globally before invoking snakemake like the
+other module-based tools: the rule loads it itself in its own shell
+subprocess (`bash -lc 'module load intermol && ...'`), because
+`module load intermol` points `PYTHONPATH` at a spack-built numpy for
+Python 3.14, and leaking that into the whole snakemake process (its own
+conda env, Python 3.13) breaks snakemake's own numpy/pandas imports --
+confirmed live 2026-11-05 (see `rules/step2_convert.smk`'s docstring).
 
 The bulk GROMACS rules need `threads: 8` worth of free cores (set via `-c`)
 to get real throughput — without it Snakemake pins every `mdrun` to 1

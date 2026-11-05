@@ -26,11 +26,14 @@ and hexadecane itself as the reference for the correction term):
    machinery). Produces results/slab/{species}/npt.gro, equilibrated to
    ~748 kg/m^3 (confirmed live 2026-11-05 for ST and MMA), matching
    hexadecane's own reference density as expected.
-2. convert_to_lammps(species)          - GROMACS singlepoint + canonicalize
-   + write LAMMPS data (atom types/charges/pair coeffs consistent with
-   oplsaa.ff's LJ/Coulomb -- this is the part that needs real care, since
-   the substrate uses lj/cut/coul/long while GROMACS used PME; the
-   long-range treatment has to be reconciled, not just the file format).
+2. convert_to_lammps(species)          - DONE, see rules/step2_convert.smk
+   and scripts/gmx_to_lammps.py: unwraps PBC (gmx trjconv -pbc whole) and
+   converts via InterMol's Python API (not its CLI -- needs the LOPLS
+   #define, which the CLI has no way to pass) to a LAMMPS input+data
+   file pair, both already pair_style lj/cut/coul/long like the
+   substrate. Cross-checked against a GROMACS single-point energy
+   (gmx mdrun -rerun): ~0.5% agreement for ST, residual expected from
+   GROMACS PME vs. LAMMPS PPPM grid/cutoff differences, not a bug.
 3. merge_with_substrate(species)       - concatenate the converted organic
    system with results/substrate/substrate_minimized.data, offsetting atom/molecule
    IDs and extending the box in z to fit both.
