@@ -84,7 +84,39 @@ bulk:
 # legacy forcefield/substrate/fe2o3.data (kept only for reference/diffing).
 slab:
   substrate_data: "results/substrate/substrate_minimized.data"
-  dilute_phi: 0.01 # target dilute mole fraction of the fragment in hexadecane
+  dilute_phi: 0.01 # upper-bound sanity check, not a sizing formula -- see
+  # rules/step2_dilute.smk's module docstring: a single fragment in any
+  # reasonably-sized solvent box is already far more dilute than this
+  # (n_hex below gives ~0.0033), so this is just a check that the box
+  # picked for other reasons (solvent-column depth for density profiling)
+  # didn't accidentally end up too small/concentrated.
+  # The adsorbing "fragment" is deliberately NOT the same ST10/MMA10 10-mer
+  # oligomer step0/1 uses for bulk CED -- forcefield/chi_chis_from_md.md's
+  # step 2 "whole-chain consistency check" bullet explicitly treats a real
+  # multi-segment chain's adsorption as a SEPARATE validation against the
+  # primary chis estimate, which should come from an isolated-segment-like
+  # analog instead (chain connectivity/cooperativity would otherwise bias
+  # the measured contact/bulk ratio away from a true per-segment chis).
+  # fragment_length=1 is that single capped repeat unit, CH3-{species}-CH3n
+  # (not oligomer_length=10's CH3-(species)_10-CH3n).
+  fragment_length: 1
+  n_hex: 300 # cheap but comfortable for a single fragment's density profile
+  # ~300 HEX @ ~750 kg/m^3 (step 0's measured density) + 1 fragment would be
+  # 5.3 nm cubic exactly at the real density -- confirmed live 2026-11-05
+  # this is too tight for packmol's optimizer even though it's a single
+  # small fragment, not ST10/MMA10's floppy 10-mers (the same "packing near
+  # the true density is the hard case" lesson from bulk_pack's box_nm
+  # comment, just at a smaller scale): ST only barely converged (loop
+  # 839/1000, ~87 min) and MMA exhausted all 1000 loops without converging
+  # ("ENDED WITHOUT PERFECT PACKING"). 5.5 nm (~166 nm^3, +12% volume over
+  # 5.3's ~149 nm^3) gives real slack; dilute_npt (ordinary ref_p=1 bar, no
+  # squeeze phase) easily absorbs a 12% volume/density correction -- nowhere
+  # near bulk_pack's 2-4x oversize that needed the squeeze-phase trick.
+  box_nm: [5.5, 5.5, 5.5]
+  em_nsteps: 10000
+  nvt_ps: 50
+  npt_ps: 200
+  npt_discard_ps: 50
   # Deliberately much smaller than the nanogap repo's production slab
   # (16.0 x 15.5 x 5.0 nm, 126720 atoms, sized for a confined single-polymer
   # shear simulation with a ~168 A solvent column) -- step 2 only needs a

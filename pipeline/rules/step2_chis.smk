@@ -20,10 +20,12 @@ the intended shape, to fill in and test incrementally, not as working rules.
 Intended stages (one per species: ST-analog fragment, MMA-analog fragment,
 and hexadecane itself as the reference for the correction term):
 
-1. build_dilute_fragment_box(species)  - GROMACS: one fragment molecule +
-   many hexadecane molecules at config["slab"]["dilute_phi"], em/nvt/npt
+1. build_dilute_fragment_box(species)  - DONE, see rules/step2_dilute.smk:
+   one fragment molecule + many hexadecane molecules, em/nvt/npt
    equilibrated in bulk first (reuse step0/step1's mdp/ and polyply
-   machinery).
+   machinery). Produces results/slab/{species}/npt.gro, equilibrated to
+   ~748 kg/m^3 (confirmed live 2026-11-05 for ST and MMA), matching
+   hexadecane's own reference density as expected.
 2. convert_to_lammps(species)          - GROMACS singlepoint + canonicalize
    + write LAMMPS data (atom types/charges/pair coeffs consistent with
    oplsaa.ff's LJ/Coulomb -- this is the part that needs real care, since
