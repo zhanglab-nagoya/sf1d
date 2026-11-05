@@ -1,8 +1,42 @@
 ; Energy minimization for bulk liquid/melt boxes (step0/step1).
+;
+; emstep/emtol are NOT arbitrary: polyply's gen_coords (both the PyPI
+; release and the jotelha/polyply_1.0 "2026-10-28-PAMA-parameters" fork used
+; by ../../../2026-10-28-generate-aa-pama) builds de novo 3D structure for
+; these all-atom OPLS oligomers/hexadecane with severely wrong local
+; geometry (bond-length-scale distances of ~0.04-0.08 nm instead of
+; ~0.11-0.15 nm, hundreds of sub-0.05-nm atom clashes per molecule) --
+; confirmed live 2026-11-04 by inspecting box0.gro directly, for all three
+; species (HEX, ST10, MMA10), not just a packing-density issue. The
+; original settings here (emstep=0.01, emtol=100) made Steepest Descents
+; false-converge ("to machine precision") in ~15 steps while the potential
+; energy was still ~1e17-1e18 -- the step-halving backtracking gives up
+; near-instantly when starting from clashes this severe. A much smaller
+; initial step (emstep=0.001, matching the sibling repo) lets SD actually
+; walk the structure out of the clashes instead.
+;
+; h-bonds/lincs constraints are deliberately NOT applied here, unlike
+; nvt.mdp/npt.mdp: constraints stabilize *dynamics*, but fighting them
+; during minimization from a structure this distorted causes "Too many
+; LINCS warnings" aborts (hit live on MMA10 with constraints enabled: >1000
+; warnings, bond rotations up to 85 degrees in a single step). Plain
+; unconstrained steepest descent lets the real bond/angle terms absorb the
+; strain directly; constraints only turn on starting at nvt.mdp, once the
+; geometry is already sane.
+;
+; emtol=100 (not the looser 1000 used just to escape the single-molecule
+; clashes above) matters too: with the single-molecule pre-resolution step
+; (single_mol_em/bulk_pack) now doing the heavy lifting, bulk_em's job is
+; just to relax gmx insert-molecules' modest residual contacts -- and
+; emtol=1000 left enough residual strain that bulk_nvt (2 fs, h-bonds
+; constrained) blew up within ~100 steps (LINCS cascading to a PME
+; segfault, confirmed live on MMA10). emtol=100 converges properly (not
+; falsely) given the now-sane starting point, and that tighter structure is
+; what actually survives nvt.mdp's 2 fs timestep.
 define      = -DLOPLS
 integrator  = steep
-emtol       = 100.0
-emstep      = 0.01
+emtol       = 100
+emstep      = 0.001
 nsteps      = {em_nsteps}
 
 cutoff-scheme  = Verlet

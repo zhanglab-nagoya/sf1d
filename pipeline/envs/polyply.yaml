@@ -6,3 +6,7 @@ dependencies:
   - pip
   - pip:
       - polyply
+      # polyply 1.8.0's PyPI wheel imports these but doesn't declare them as
+      # dependencies (upstream packaging bug) -- pin them explicitly.
+      - pysmiles
+      - cgsmiles

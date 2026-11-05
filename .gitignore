@@ -6,3 +6,6 @@ dist/
 .venv/
 pipeline/results/
 pipeline/.snakemake/
+pipeline/mdout.mdp
+pipeline/step*.pdb
+pipeline/#*#

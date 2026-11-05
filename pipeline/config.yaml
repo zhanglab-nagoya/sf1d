@@ -17,8 +17,19 @@ bulk:
     HEX: 500 # hexadecane "melt" = the pure solvent itself
     ST: 40
     MMA: 60
-  box_nm: [6.0, 6.0, 6.0] # generous initial box; NPT compresses to the real density
-  em_nsteps: 5000
+  # box_nm needs margin for two separate reasons, both confirmed live
+  # 2026-11-04: (1) it must exceed the real liquid volume at realistic
+  # density for every species sharing this one box size (NPT then
+  # compresses down) -- [6,6,6] (216 nm^3) was actually *smaller* than real
+  # hexadecane (500 chains @ ~0.77 g/cm^3 needs ~244 nm^3) or ST10 melt
+  # (40 chains @ ~0.9 g/cm^3 needs ~251 nm^3). (2) separately, bulk_pack's
+  # packer (see its docstring) needs real spare room to place ST10's long,
+  # floppy C18 tail without exhausting its iteration budget -- at 7.5 nm
+  # (422 nm^3, ~1.7x ST10's needed volume) gmx insert-molecules (since
+  # replaced by packmol) reliably placed only 20-34 of 40 ST10 copies even
+  # at -try 5000; 10 nm (1000 nm^3, ~4x margin) reliably placed all 40.
+  box_nm: [10.0, 10.0, 10.0]
+  em_nsteps: 20000 # emtol=100 needed ~7600 steps for MMA's 9480-atom box; padded for margin
   nvt_ps: 100
   npt_ps: 500 # placeholder — extend substantially for real CED/density statistics
 
