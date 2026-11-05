@@ -31,7 +31,31 @@ bulk:
   box_nm: [10.0, 10.0, 10.0]
   em_nsteps: 20000 # emtol=100 needed ~7600 steps for MMA's 9480-atom box; padded for margin
   nvt_ps: 100
-  npt_ps: 500 # placeholder — extend substantially for real CED/density statistics
+  # Going straight from the loosely-packed box0.gro to a normal ref_p=1 bar
+  # NPT doesn't work -- confirmed live 2026-11-05: density crept up barely
+  # linearly (HEX: 188->218 kg/m^3 over 500 ps, nowhere near the real
+  # ~770), because the barostat's response is proportional to (ref_p -
+  # instantaneous pressure), and this deliberately loose box (see box_nm
+  # above) starts out near-vacuum-dilute with only a small, slowly-varying
+  # pressure to drive against. bulk_squeeze runs first, at a much higher
+  # ref_p, to get a large driving force instead -- confirmed live for both
+  # HEX and ST10: density reaches/overshoots the real target within
+  # ~100-150 ps, fully stable (zero LINCS warnings). squeeze_ps=150 gives
+  # that margin. The overshoot is harmless and expected (higher pressure =>
+  # higher equilibrium density); bulk_npt then switches back to ref_p=1 bar
+  # and relaxes the small excess quickly (confirmed: HEX dropped from the
+  # squeeze's ~790 kg/m^3 to a stable ~748 kg/m^3 plateau within ~30 ps).
+  squeeze_pressure_bar: 500
+  squeeze_ps: 150
+  # npt_discard_ps is the equilibration part of the npt_ps run (relaxing
+  # the squeeze-phase overshoot back to the real ref_p=1 bar density) that
+  # bulk_density skips over via `gmx energy -b` -- only [npt_discard_ps,
+  # npt_ps] is averaged for the reported density. 100 ps of discard plus
+  # 200 ps of production is generous given the ~30 ps relaxation observed
+  # live for HEX; the margin covers ST/MMA potentially being slower to
+  # settle (longer, floppier chains).
+  npt_ps: 300
+  npt_discard_ps: 100
 
 # Step 2: dilute slab adsorption near the Fe2O3 substrate (LAMMPS).
 # Not implemented yet — see pipeline/rules/step2_chis.smk.

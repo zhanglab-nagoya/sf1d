@@ -1,14 +1,19 @@
 """Step 0 (segment size) + Step 1 (chi_AS, chi_BS): bulk hexadecane and
-capped ST/MMA oligomer "melt" boxes, GROMACS em -> nvt -> npt, then read off
-density (step0) and cohesive energy density / solubility parameter (step1).
+capped ST/MMA oligomer "melt" boxes, GROMACS em -> nvt -> squeeze -> npt,
+then read off density (step0) and cohesive energy density / solubility
+parameter (step1).
 
-STATUS: scaffolded, not yet run end-to-end on this machine. The GROMACS
-settings (mdp/*.mdp) and box sizes (config.yaml: bulk.*) are reasonable
-defaults, not tuned — review run lengths before trusting any density/CED
-number this produces. The vacuum single-molecule reference needed for a
-correct cohesive-energy-density split (see solubility_chi rule below) is the
-one piece that's a real TODO, not just "needs longer runs": the shell
-command there must be reviewed, not just executed, before use.
+STATUS: runs end-to-end (segment_volume target). The nvt->squeeze->npt
+chain and run lengths were validated via standalone gmx_mpi benchmarking
+(not yet re-confirmed through this exact rule chain) on 2026-11-05: HEX
+and ST10 both reach/overshoot their real liquid density within the
+squeeze phase and relax to a stable plateau within ~30 ps of switching
+back to ref_p=1 bar (HEX: ~748 kg/m^3 vs. a ~770 kg/m^3 literature
+reference -- a normal few-percent OPLS/L-OPLS deviation, not a red flag).
+The vacuum single-molecule reference needed for a correct
+cohesive-energy-density split (see solubility_chi rule below) is still a
+real TODO, not just "needs longer runs": the shell command there must be
+reviewed, not just executed, before use.
 """
 
 RES = "results/bulk"
@@ -187,13 +192,14 @@ rule single_mol_em:
     params:
         prefix=f"{RES}/{{species}}/single_em",
         mdp_rendered=f"{RES}/{{species}}/single_em.rendered.mdp",
+    threads: 8
     run:
         render_mdp(input.mdp, params.mdp_rendered, em_nsteps=config["bulk"]["em_nsteps"])
         shell(
             "gmx_mpi grompp -f {params.mdp_rendered} -c {input.gro} -p {input.top} "
             "-o {output.tpr} -maxwarn 2"
         )
-        shell("gmx_mpi mdrun -deffnm {params.prefix}")
+        shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 
 
 rule bulk_pack:
@@ -267,13 +273,14 @@ rule bulk_em:
     params:
         prefix=f"{RES}/{{species}}/em",
         mdp_rendered=f"{RES}/{{species}}/em.rendered.mdp",
+    threads: 8
     run:
         render_mdp(input.mdp, params.mdp_rendered, em_nsteps=config["bulk"]["em_nsteps"])
         shell(
             "gmx_mpi grompp -f {params.mdp_rendered} -c {input.gro} -p {input.top} "
             "-o {output.tpr} -maxwarn 2"
         )
-        shell("gmx_mpi mdrun -deffnm {params.prefix}")
+        shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 
 
 rule bulk_nvt:
@@ -288,6 +295,7 @@ rule bulk_nvt:
         prefix=f"{RES}/{{species}}/nvt",
         mdp_rendered=f"{RES}/{{species}}/nvt.rendered.mdp",
         nsteps=lambda wc: int(config["bulk"]["nvt_ps"] / 0.002),
+    threads: 8
     run:
         render_mdp(
             input.mdp,
@@ -299,12 +307,45 @@ rule bulk_nvt:
             "gmx_mpi grompp -f {params.mdp_rendered} -c {input.gro} -r {input.gro} "
             "-p {input.top} -o {output.tpr} -maxwarn 2"
         )
-        shell("gmx_mpi mdrun -deffnm {params.prefix}")
+        shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
+
+
+rule bulk_squeeze:
+    """High-pressure pre-compression, between NVT and the real NPT -- see
+    config.yaml's bulk.squeeze_pressure_bar/squeeze_ps comment for why this
+    step exists (going straight from the loosely-packed box0.gro to a
+    normal ref_p=1 bar NPT doesn't work: confirmed live 2026-11-05, density
+    only crept up linearly and nowhere near the real target over 500 ps)."""
+    input:
+        gro=f"{RES}/{{species}}/nvt.gro",
+        top=f"{RES}/{{species}}/topol.top",
+        mdp="mdp/squeeze.mdp",
+    output:
+        gro=f"{RES}/{{species}}/squeeze.gro",
+        tpr=f"{RES}/{{species}}/squeeze.tpr",
+    params:
+        prefix=f"{RES}/{{species}}/squeeze",
+        mdp_rendered=f"{RES}/{{species}}/squeeze.rendered.mdp",
+        nsteps=lambda wc: int(config["bulk"]["squeeze_ps"] / 0.002),
+    threads: 8
+    run:
+        render_mdp(
+            input.mdp,
+            params.mdp_rendered,
+            squeeze_nsteps=params.nsteps,
+            temperature_K=config["temperature_K"],
+            squeeze_pressure_bar=config["bulk"]["squeeze_pressure_bar"],
+        )
+        shell(
+            "gmx_mpi grompp -f {params.mdp_rendered} -c {input.gro} -r {input.gro} "
+            "-p {input.top} -o {output.tpr} -maxwarn 2"
+        )
+        shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 
 
 rule bulk_npt:
     input:
-        gro=f"{RES}/{{species}}/nvt.gro",
+        gro=f"{RES}/{{species}}/squeeze.gro",
         top=f"{RES}/{{species}}/topol.top",
         mdp="mdp/npt.mdp",
     output:
@@ -315,6 +356,7 @@ rule bulk_npt:
         prefix=f"{RES}/{{species}}/npt",
         mdp_rendered=f"{RES}/{{species}}/npt.rendered.mdp",
         nsteps=lambda wc: int(config["bulk"]["npt_ps"] / 0.002),
+    threads: 8
     run:
         render_mdp(
             input.mdp,
@@ -327,17 +369,22 @@ rule bulk_npt:
             "gmx_mpi grompp -f {params.mdp_rendered} -c {input.gro} -r {input.gro} "
             "-p {input.top} -o {output.tpr} -maxwarn 2"
         )
-        shell("gmx_mpi mdrun -deffnm {params.prefix}")
+        shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 
 
 rule bulk_density:
-    """Step 0 input: average mass density -> a^3 (segment volume mapping)."""
+    """Step 0 input: average mass density -> a^3 (segment volume mapping).
+    -b skips bulk_npt's own equilibration window (relaxing the squeeze
+    phase's overshoot back down to the real ref_p) -- see config.yaml's
+    bulk.npt_discard_ps comment."""
     input:
         edr=f"{RES}/{{species}}/npt.edr",
     output:
         xvg=f"{RES}/{{species}}/density.xvg",
+    params:
+        discard_ps=config["bulk"]["npt_discard_ps"],
     shell:
-        'echo "Density" | gmx_mpi energy -f {input.edr} -o {output.xvg}'
+        'echo "Density" | gmx_mpi energy -f {input.edr} -b {params.discard_ps} -o {output.xvg}'
 
 
 rule segment_volume:
