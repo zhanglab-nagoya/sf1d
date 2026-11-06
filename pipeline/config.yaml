@@ -84,6 +84,14 @@ bulk:
 # legacy forcefield/substrate/fe2o3.data (kept only for reference/diffing).
 slab:
   substrate_data: "results/substrate/substrate_minimized.data"
+  merge_gap_angstrom: 3.0 # rules/step2_merge.smk / scripts/merge_slab.py:
+  # buffer gap at each substrate/liquid interface (and at the periodic
+  # wrap-around seam where the liquid's top meets the substrate's own
+  # bottom face again) in the fully 3D-periodic sandwich this pipeline
+  # merges onto -- just enough to avoid a severe initial steric clash
+  # before stage 4's energy minimization (not yet written) relaxes the
+  # interface properly; not meant to be a physically meaningful spacing
+  # on its own.
   dilute_phi: 0.01 # upper-bound sanity check, not a sizing formula -- see
   # rules/step2_dilute.smk's module docstring: a single fragment in any
   # reasonably-sized solvent box is already far more dilute than this

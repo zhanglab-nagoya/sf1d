@@ -34,9 +34,16 @@ and hexadecane itself as the reference for the correction term):
    substrate. Cross-checked against a GROMACS single-point energy
    (gmx mdrun -rerun): ~0.5% agreement for ST, residual expected from
    GROMACS PME vs. LAMMPS PPPM grid/cutoff differences, not a bug.
-3. merge_with_substrate(species)       - concatenate the converted organic
-   system with results/substrate/substrate_minimized.data, offsetting atom/molecule
-   IDs and extending the box in z to fit both.
+3. merge_with_substrate(species)       - DONE, see rules/step2_merge.smk
+   and scripts/merge_slab.py: concatenates the converted organic system
+   with results/substrate/substrate_minimized.data into one fully
+   3D-periodic sandwich (liquid wraps around in z to meet the
+   substrate's own bottom face again -- no vacuum-padded free surface,
+   no kspace_modify slab correction needed), offsetting atom/molecule/
+   type IDs and relying on geometric mixing (both force fields' own
+   native rule) for every cross pair term. Smoke-tested for both
+   species: the merged.data + merged_pair_coeffs.lmp pair loads and
+   evaluates cleanly in LAMMPS (finite energies, no errors).
 4. minimize / nvt / npt slab(species)  - LAMMPS equilibration near the
    surface.
 5. production_slab(species)            - longer LAMMPS run, dump a
