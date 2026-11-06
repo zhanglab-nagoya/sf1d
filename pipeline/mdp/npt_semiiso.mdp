@@ -1,0 +1,39 @@
+; NPT production for the dilute slab box (step 2): unlike the bulk boxes'
+; isotropic npt.mdp, this box's lateral (x,y) dimensions are fixed to the
+; Fe2O3 substrate's own relaxed footprint (results/substrate/
+; substrate_minimized.data) *before* this run starts -- see
+; rules/step2_dilute.smk's dilute_pack docstring. compressibility_xy=0.0
+; freezes the lateral box exactly where dilute_pack put it regardless of
+; the instantaneous lateral pressure, so only z is free to relax to the
+; real liquid density (semiisotropic coupling, two independent components).
+define                  = -DLOPLS
+integrator              = md
+dt                      = 0.002
+nsteps                  = {npt_nsteps}
+continuation            = yes
+constraint_algorithm    = lincs
+constraints             = h-bonds
+
+cutoff-scheme  = Verlet
+coulombtype    = PME
+rvdw           = 1.1
+rcoulomb       = 1.1
+rlist          = 1.1
+pbc            = xyz
+
+tcoupl      = v-rescale
+tc-grps     = System
+tau_t       = 1.0
+ref_t       = {temperature_K}
+
+pcoupl          = c-rescale
+pcoupltype      = semiisotropic
+tau_p           = 2.0
+ref_p           = {pressure_bar} {pressure_bar}
+compressibility = 0.0 4.5e-5
+
+gen_vel     = no
+
+nstxout     = 0
+nstenergy   = 500
+nstlog      = 500

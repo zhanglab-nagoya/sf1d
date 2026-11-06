@@ -16,25 +16,38 @@ results/bulk/HEX/single_em.gro directly (hexadecane's EM'd single-molecule
 structure is shared, identical regardless of which stage needs it -- no
 reason to rebuild it here).
 
-Packs close to hexadecane's own measured equilibrium density (box_nm/n_hex
-in config.yaml, sized from step 0's a3_nm3) with only a modest margin, not
-bulk_pack's full oversize-then-squeeze -- that whole problem was about
-packmol reliably placing hundreds of ST10's long, floppy C18-tailed
-copies. But "modest margin" turned out not to be zero margin: confirmed
-live 2026-11-05, packing dead-on at the real density (box_nm=5.3 exactly)
-was still too tight for packmol's optimizer even for one small fragment
-(ST barely converged at loop 839/1000 after ~87 min; MMA exhausted all
-1000 loops without converging) -- the same "packing near the true density
-is the hard case" lesson from bulk_pack's own box_nm comment, just at a
-much smaller scale. box_nm now carries a ~12% volume margin instead;
-dilute_npt (ordinary ref_p=1 bar, no squeeze phase) easily absorbs that
-small a correction.
+Packs close to hexadecane's own measured equilibrium density (n_hex in
+config.yaml, sized from results/segment_volume.yaml's measured HEX
+density) with only a modest z-margin, not bulk_pack's full
+oversize-then-squeeze -- that whole problem was about packmol reliably
+placing hundreds of ST10's long, floppy C18-tailed copies. But "modest
+margin" turned out not to be zero margin: confirmed live 2026-11-05,
+packing dead-on at the real density was too tight for packmol's optimizer
+even for one small fragment (ST barely converged at loop 839/1000 after
+~87 min; MMA exhausted all 1000 loops without converging) -- the same
+"packing near the true density is the hard case" lesson from bulk_pack's
+own box_nm comment, just at a smaller scale. slab.volume_margin
+(config.yaml) now carries a ~12% margin instead; dilute_npt's z-only
+relaxation easily absorbs that small a correction.
 
-STATUS: runs end-to-end for both species with the corrected box_nm margin
-above -- confirmed live 2026-11-05, both relax to ~748 kg/m^3 (ST 747.6,
-MMA 748.2), matching hexadecane's own ~750 kg/m^3 reference density as
-expected for a box dominated by 300 HEX molecules plus one dilute
-fragment.
+The box's lateral (x,y) dimensions are NOT sized independently at all --
+dilute_pack reads them straight from results/substrate/
+substrate_minimized.data (step2_substrate.smk), so this organic box ends
+up commensurate with the Fe2O3 substrate's own relaxed footprint *before*
+any MD here runs, rather than merging two differently-sized periodic
+boxes later (step2_convert.smk/step2_chis.smk) and having to stretch one
+to fit -- which would strain either the solvent's density or the
+substrate's own crystal lattice for no good reason. Only z is free:
+dilute_npt (mdp/npt_semiiso.mdp, semiisotropic pressure coupling with
+compressibility_xy=0) relaxes z only, keeping x,y frozen at whatever
+dilute_pack set them to. mdp/em.mdp and mdp/nvt.mdp are still reused
+verbatim from step0/1 (no coupling-type concern at constant volume).
+
+STATUS: runs end-to-end for both species with the substrate-commensurate
+box above -- confirmed live 2026-11-06: lateral box frozen exactly at the
+substrate's own relaxed footprint (5.1811 x 5.3844 nm, both species, as
+intended), z relaxes to ~5.42-5.44 nm, density ~743-745 kg/m^3 (ST 743.1,
+MMA 745.1), close to hexadecane's own ~750 kg/m^3 reference as expected.
 """
 
 SLAB_RES = "results/slab"
@@ -146,25 +159,60 @@ rule dilute_pack:
     molecule (results/bulk/HEX/single_em.gro -- shared with step0/1, not
     rebuilt here) directly near the real liquid density via packmol. See
     bulk_pack's docstring for the PDB round-trip packmol needs (.gro <->
-    .pdb, box vectors reattached after)."""
+    .pdb, box vectors reattached after).
+
+    Lateral (x,y) box dims come straight from the substrate's own relaxed
+    footprint (see this file's module docstring for why); only z is
+    sized here, from n_hex/HEX's measured molar mass+density
+    (results/segment_volume.yaml) plus slab.volume_margin headroom for
+    packmol -- same role bulk_pack's box_nm oversize played, just
+    confined to one dimension instead of three since x,y are fixed."""
     input:
         frag_gro=f"{SLAB_RES}/{{species}}/single_em.gro",
         hex_gro="results/bulk/HEX/single_em.gro",
+        substrate_data=config["slab"]["substrate_data"],
+        segment_volume="results/segment_volume.yaml",
     output:
         gro=f"{SLAB_RES}/{{species}}/box0.gro",
     params:
         n_hex=config["slab"]["n_hex"],
-        box_nm=config["slab"]["box_nm"],
+        volume_margin=config["slab"]["volume_margin"],
         frag_pdb=f"{SLAB_RES}/{{species}}/single_em.pdb",
         hex_pdb=f"{SLAB_RES}/{{species}}/hex_single_em.pdb",
         packed_pdb=f"{SLAB_RES}/{{species}}/packed.pdb",
         inp_file=f"{SLAB_RES}/{{species}}/packmol.inp",
     run:
-        box_ang = [b * 10 for b in params.box_nm]  # nm -> Angstrom
+        import yaml
+
+        N_A = 6.02214076e23  # 1/mol
+
+        def substrate_xy_nm(data_path):
+            xlo = xhi = ylo = yhi = None
+            with open(data_path) as fh:
+                for line in fh:
+                    if "xlo xhi" in line:
+                        xlo, xhi = map(float, line.split()[:2])
+                    elif "ylo yhi" in line:
+                        ylo, yhi = map(float, line.split()[:2])
+            return (xhi - xlo) / 10.0, (yhi - ylo) / 10.0  # Angstrom -> nm
+
+        x_nm, y_nm = substrate_xy_nm(input.substrate_data)
+
+        with open(input.segment_volume) as fh:
+            seg = yaml.safe_load(fh)
+        m_hex = seg["hexadecane_molar_mass_g_per_mol"]
+        rho_hex = seg["hexadecane_density_kg_per_m3"]
+
+        # n_hex HEX molecules' own volume at their real measured density
+        # (the 1 fragment's volume is a negligible correction here --
+        # this is only sizing the packing box, not the production result).
+        volume_nm3 = (params.n_hex * m_hex / (N_A * 1000.0) / rho_hex) * 1e27
+        z_nm = volume_nm3 / (x_nm * y_nm) * params.volume_margin
 
         shell("gmx_mpi editconf -f {input.frag_gro} -o {params.frag_pdb}")
         shell("gmx_mpi editconf -f {input.hex_gro} -o {params.hex_pdb}")
 
+        box_ang = [x_nm * 10, y_nm * 10, z_nm * 10]
         with open(params.inp_file, "w") as fh:
             fh.write("tolerance 2.0\n")
             fh.write("filetype pdb\n")
@@ -185,8 +233,8 @@ rule dilute_pack:
 
         shell("packmol < {params.inp_file}")
         shell(
-            "gmx_mpi editconf -f {params.packed_pdb} -o {output.gro} "
-            "-box {params.box_nm[0]} {params.box_nm[1]} {params.box_nm[2]}"
+            f"gmx_mpi editconf -f {params.packed_pdb} -o {output.gro} "
+            f"-box {x_nm:.4f} {y_nm:.4f} {z_nm:.4f}"
         )
 
 
@@ -294,15 +342,18 @@ rule dilute_nvt:
 
 
 rule dilute_npt:
-    """Packed directly near the real density (unlike bulk_pack), so no
-    squeeze phase needed -- this is the "small perturbation" regime a
+    """Packed directly near the real density in z (unlike bulk_pack), so
+    no squeeze phase needed -- this is the "small perturbation" regime a
     normal ref_p=1 bar barostat handles fine (see config.yaml's bulk.
     squeeze_pressure_bar comment for why that was NOT true for bulk_pack's
-    deliberately oversized boxes)."""
+    deliberately oversized boxes). Uses mdp/npt_semiiso.mdp, not the
+    shared isotropic mdp/npt.mdp step0/1 use: x,y must stay exactly at
+    whatever dilute_pack set them to (the substrate's own footprint, see
+    dilute_pack's docstring), so only z is allowed to relax."""
     input:
         gro=f"{SLAB_RES}/{{species}}/nvt.gro",
         top=f"{SLAB_RES}/{{species}}/topol.top",
-        mdp="mdp/npt.mdp",
+        mdp="mdp/npt_semiiso.mdp",
     output:
         gro=f"{SLAB_RES}/{{species}}/npt.gro",
         edr=f"{SLAB_RES}/{{species}}/npt.edr",

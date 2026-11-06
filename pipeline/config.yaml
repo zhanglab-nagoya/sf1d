@@ -101,18 +101,25 @@ slab:
   # (not oligomer_length=10's CH3-(species)_10-CH3n).
   fragment_length: 1
   n_hex: 300 # cheap but comfortable for a single fragment's density profile
-  # ~300 HEX @ ~750 kg/m^3 (step 0's measured density) + 1 fragment would be
-  # 5.3 nm cubic exactly at the real density -- confirmed live 2026-11-05
-  # this is too tight for packmol's optimizer even though it's a single
-  # small fragment, not ST10/MMA10's floppy 10-mers (the same "packing near
-  # the true density is the hard case" lesson from bulk_pack's box_nm
-  # comment, just at a smaller scale): ST only barely converged (loop
-  # 839/1000, ~87 min) and MMA exhausted all 1000 loops without converging
-  # ("ENDED WITHOUT PERFECT PACKING"). 5.5 nm (~166 nm^3, +12% volume over
-  # 5.3's ~149 nm^3) gives real slack; dilute_npt (ordinary ref_p=1 bar, no
-  # squeeze phase) easily absorbs a 12% volume/density correction -- nowhere
+  # Lateral (x,y) box dims are NOT set here -- rules/step2_dilute.smk's
+  # dilute_pack reads them straight from results/substrate/
+  # substrate_minimized.data, so the organic box is commensurate with the
+  # Fe2O3 substrate's own relaxed footprint (fixed by the crystal lattice,
+  # not something either side can cheat on) before the two are ever
+  # merged. Only z is free: dilute_pack sizes it from n_hex/HEX's own
+  # measured density (results/segment_volume.yaml) and volume_margin
+  # below, and dilute_npt (mdp/npt_semiiso.mdp, semiisotropic coupling
+  # with compressibility_xy=0) relaxes z only, keeping x,y frozen at
+  # whatever dilute_pack set them to throughout.
+  volume_margin: 1.12 # extra z headroom for packmol -- confirmed live
+  # 2026-11-05 packing dead-on at the real density (margin=1.0) was too
+  # tight for packmol's optimizer even for one small fragment (ST barely
+  # converged at loop 839/1000 after ~87 min; MMA exhausted all 1000 loops
+  # without converging, "ENDED WITHOUT PERFECT PACKING") -- the same
+  # "packing near the true density is the hard case" lesson as bulk_pack's
+  # box_nm comment, just at a smaller scale. dilute_npt's z-only
+  # relaxation easily absorbs a 12% volume/density correction -- nowhere
   # near bulk_pack's 2-4x oversize that needed the squeeze-phase trick.
-  box_nm: [5.5, 5.5, 5.5]
   em_nsteps: 10000
   nvt_ps: 50
   npt_ps: 200
