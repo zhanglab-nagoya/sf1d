@@ -84,12 +84,31 @@ set-resources:
     ompthreads: 48
     time: "04:00:00"   # config.yaml bulk.npt_ps = 500 ps
 
-# Step 2 (rules/step2_chis.smk) is design-only -- no rules exist yet, so
-# there is nothing to size here. Once it's implemented: the Fe2O3 slab
-# systems (forcefield/substrate/fe2o3.data, ~127k atoms) are LAMMPS jobs
-# (lmp_mpi, module `lammps` -- already loaded in pbs-jobscript.sh), and will
-# very likely need a full exclusive node (t1-single or t1-small -- `-l
-# select=<N>:mpiprocs=<ranks>:ompthreads=<threads>`, do NOT add ncpus/mem
-# yourself, PBS expands the full node automatically), not the t1-share tier
-# used above for the small bulk boxes. Don't guess sizing before that stage
-# is actually written and run once.
+  # Step 2 chis stage 4+5 (rules/step2_equilibrate.smk): the merged
+  # substrate/liquid slab (~23.5k atoms -- NOT the full standalone
+  # fe2o3.data substrate, ~127k atoms, which never runs dynamics on its
+  # own after step2_substrate.smk) is a single-NUMA job, not an exclusive
+  # node: sized from a real throughput benchmark here, job 102982.jobm,
+  # 2026-11-06 -- 48 OpenMP threads (1 NUMA, t1-share) gave 17.4x over
+  # this pipeline's workstation (0.111 s/step -> 0.00636 s/step), 6.8
+  # ns/day/species. config.yaml's slab.production_ns (10 ns as of
+  # 2026-11-06) is the dominant cost: ~35 h/species real time, padded
+  # here for scheduling safety, not for the point cost (points are
+  # charged by actual elapsed time, see flow2-ai's own ~/CLAUDE.md
+  # section 7). The stage's own production jobs (103064.jobm ST,
+  # 103065.jobm MMA) were submitted directly via qsub with a hand-written
+  # jobscript, not yet through this Snakemake profile end-to-end (no
+  # intermol/polyply/gmx_mpi conda env exists on flow2-ai yet -- the
+  # inputs were built locally and scp'd over) -- treat these set-resources
+  # as the right numbers for whenever that full integration happens, not
+  # as something already exercised through `snakemake
+  # --workflow-profile`.
+  lmp_equilibrate_merged:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "44:00:00"
+
+# forcefield/substrate/fe2o3.data (~127k atoms) itself is only ever EM'd
+# once by step2_substrate.smk, not run under dynamics here -- don't size a
+# queue for it; the slab systems above are what actually need compute.

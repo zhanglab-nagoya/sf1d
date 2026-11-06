@@ -1,16 +1,17 @@
-# Stage 4: minimize + NVT equilibration of the merged substrate/liquid
-# slab, in ONE continuous LAMMPS session -- confirmed live 2026-11-06
-# that splitting these into two separate `lmp` invocations (minimize,
-# write a checkpoint, NVT re-reads it) is NOT robust for this system's
-# `bond_style hybrid harmonic`: write_data silently drops its Bond/Angle/
-# Dihedral Coeffs sections regardless of type count, and read_restart
-# across invocations lost bond coeffs too (inconsistently, worse after
-# deduplicating down to a handful of types, not better -- see
+# Stages 4+5: minimize + NVT equilibration + production of the merged
+# substrate/liquid slab, in ONE continuous LAMMPS session -- confirmed
+# live 2026-11-06 that splitting these into separate `lmp` invocations
+# (minimize, write a checkpoint, NVT re-reads it) is NOT robust for this
+# system's `bond_style hybrid harmonic`: write_data silently drops its
+# Bond/Angle/Dihedral Coeffs sections regardless of type count, and
+# read_restart across invocations lost bond coeffs too (inconsistently,
+# worse after deduplicating down to a handful of types, not better -- see
 # scripts/dedup_lammps_bonded_types.py's docstring for the deduplication
 # itself, which is still worth doing on its own merits, just not
-# sufficient for this). Keeping both stages in one session sidesteps the
+# sufficient for this). Keeping every stage in one session sidesteps the
 # whole class of problem: there is no serialize/deserialize boundary to
-# get wrong.
+# get wrong. This is why stage 5's (much longer) production run is
+# appended here instead of living in its own template/rule.
 #
 # Both stages freeze the substrate (it was already relaxed on its own
 # terms by step2_substrate.smk and should not be re-relaxed or thermally
@@ -48,6 +49,20 @@ pair_modify mix geometric
 group mobile type 1:{{ params.n_org_types }}
 group substrate type {{ params.n_org_types + 1 }}:{{ params.n_org_types + 2 }}
 velocity substrate set 0.0 0.0 0.0
+
+# Stage 5's density profiles need the single adsorbing fragment split out
+# from the many hexadecane molecules within `mobile`. Confirmed live
+# 2026-11-06 for both ST and MMA (unwrapped.gro / converted.lmp): a
+# fragment_length=1 "CH3-{species}-CH3" capped repeat unit is written by
+# GROMACS/polyply as THREE separate molecule-IDs (cap, core, cap --
+# residues "1CH3"/"2{species}"/"3CH3" in the .gro), always 1-3 since the
+# fragment is always the very first molecule in topol.top's [molecules]
+# section (see rules/step2_dilute.smk). Hexadecane molecule-IDs start
+# right after at 4 and run up to merge_slab.py's max_org_molid (passed in
+# below; the substrate itself gets the one molid right after that, not
+# needed here since it's already selected by atom type above).
+group fragment molecule 1:3
+group hexadecane molecule 4:{{ params.max_org_molid }}
 
 neighbor 2.0 bin
 neigh_modify every 1 delay 0 check yes
@@ -89,3 +104,27 @@ run {{ params.nsteps }}
 
 write_data nvt.data
 write_restart nvt.restart
+
+# --- Stage 5: production NVT, with z-resolved number-density profiles
+# for the fragment and for hexadecane (chis_x reads the contact-vs-bulk
+# ratio off these, forcefield/chi_chis_from_md.md step 2). One shared
+# compute chunk/atom bins the whole box along z (origin 0.0 handles the
+# box's slightly-negative xlo/ylo/zlo from merge_slab.py fine -- LAMMPS
+# bins via floor((x-origin)/delta), which is well-defined for negative x
+# too); two separate `fix ave/chunk` average each group's atom count into
+# those bins. Deliberately NOT "ave running": keeping each window's
+# average independent (the default) lets stage 6 check whether the
+# profile is still drifting late in the run (a single fragment molecule's
+# sampling of contact-vs-bulk could in principle not have converged in
+# any finite run -- see config.yaml's slab.production_ns comment) instead
+# of silently trusting one cumulative number.
+compute cz all chunk/atom bin/1d z 0.0 {{ params.bin_width_angstrom }} units box
+
+fix dfrag fragment ave/chunk {{ params.chunk_nevery }} {{ params.chunk_nrepeat }} {{ params.chunk_nfreq }} cz density/number file fragment_density.profile
+fix dhex hexadecane ave/chunk {{ params.chunk_nevery }} {{ params.chunk_nrepeat }} {{ params.chunk_nfreq }} cz density/number file hexadecane_density.profile
+
+thermo {{ params.chunk_nfreq }}
+run {{ params.production_nsteps }}
+
+write_data production.data
+write_restart production.restart

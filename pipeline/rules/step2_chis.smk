@@ -59,11 +59,31 @@ and hexadecane itself as the reference for the correction term):
    low because it normalizes by the frozen substrate's DOF too, even
    though those atoms carry zero kinetic energy; the thermostat itself was
    never affected, only that display column).
-5. production_slab(species)            - longer LAMMPS run, dump a
-   z-resolved density profile for the fragment and for hexadecane.
-6. compute_chis                        - python: read the two density
-   profiles (fragment's and hexadecane's), take the contact-layer vs. bulk
-   ratio for each, and combine per forcefield/chi_chis_from_md.md step 2:
+5. production_slab(species)            - IN PROGRESS, same LAMMPS session
+   as stage 4 (rules/step2_equilibrate.smk, lmp/equilibrate_merge.lmp.template
+   -- appended rather than a separate rule/template, for the same
+   restart-serialization reason stage 4 itself is one session). Dumps a
+   z-resolved number-density profile for the fragment group (molecule
+   1:3) and the hexadecane group (molecule 4:max_org_molid) via
+   `fix ave/chunk`, 1 Angstrom bins. config.yaml's slab.production_ns
+   (10 ns as of 2026-11-06) was sized from a real flow2-ai throughput
+   benchmark (profiles/flow2-ai/, job 102982.jobm: 6.8 ns/day/species on
+   48 OpenMP threads) and submitted there directly (jobs 103064.jobm ST,
+   103065.jobm MMA, 2026-11-06, ~35 h/species, ~530 points/species) --
+   not yet complete. Syntax-verified locally first with a short run
+   before committing to that cost. See config.yaml's slab.production_ns
+   comment for why 10 ns is an EXPLORATORY length, not a guaranteed-
+   converged one (single fragment molecule, might not revisit both
+   contact and bulk if it adsorbs strongly -- check
+   fragment_density.profile's later windows for continued drift, not
+   just trust the run finished).
+6. compute_chis                        - NOT YET WRITTEN (blocked on
+   stage 5's production runs finishing). python: read the two density
+   profiles (fragment's and hexadecane's) from
+   results/slab/{species}/{fragment,hexadecane}_density.profile, take the
+   contact-layer vs. bulk ratio for each (discarding an initial
+   equilibration portion of the windows, checking the later windows for
+   convergence), and combine per forcefield/chi_chis_from_md.md step 2:
 
        chis_x = ln[phi_contact,x/phi_bulk,x] - ln[phi_contact,S/phi_bulk,S]
 

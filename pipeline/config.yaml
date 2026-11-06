@@ -168,6 +168,36 @@ slab:
   merge_nvt_timestep_fs: 0.5
   merge_nvt_ps: 20
   merge_nvt_seed: 12345
+
+  # Stage 5 (same LAMMPS session, rules/step2_equilibrate.smk): production
+  # NVT + z-resolved density profiles chis_x is read off. Sized from a real
+  # throughput benchmark on flow2-ai (profiles/flow2-ai/, job 102982.jobm,
+  # 2026-11-06): 6.8 ns/day/species on 1 NUMA (48 OpenMP threads,
+  # t1-share) -- 10 ns costs ~35 h and ~530 points per species (~1060
+  # total for ST+MMA), affordable within the group's point budget at the
+  # time. This is deliberately an EXPLORATORY length, not a converged
+  # one: with only a single fragment molecule in the box (slab.n_hex,
+  # fragment_length above), its spontaneous sampling of both the contact
+  # layer and the bulk might not converge in any feasible brute-force run
+  # if it adsorbs strongly -- forcefield/chi_chis_from_md.md step 2 lists
+  # umbrella-sampling PMF as the fallback for exactly this case. Check
+  # results/slab/{species}/fragment_density.profile's later windows for
+  # continued drift (not just the final one) before trusting chis_x from
+  # it -- don't assume 10 ns was enough just because the run completed.
+  production_ns: 10
+  # 1 Angstrom bins resolve the contact layer (one segment ~ a few
+  # Angstrom, see step 0's segment_volume.yaml) without so many bins that
+  # each is under-sampled by the single fragment molecule.
+  density_bin_angstrom: 1.0
+  # fix ave/chunk window: sample every 0.1 ps (200 steps * 0.5 fs),
+  # 500 samples/window -> 50 ps per output block (chunk_nevery *
+  # chunk_nrepeat == chunk_nfreq, required by LAMMPS: Nfreq must be a
+  # multiple of Nevery and span at least Nevery*Nrepeat). 10 ns / 50 ps =
+  # 200 independent blocks per species to check convergence across.
+  # Deliberately NOT "ave running" in the template -- see its comment.
+  density_chunk_nevery: 200
+  density_chunk_nrepeat: 500
+  density_chunk_nfreq: 100000
   # Deliberately much smaller than the nanogap repo's production slab
   # (16.0 x 15.5 x 5.0 nm, 126720 atoms, sized for a confined single-polymer
   # shear simulation with a ~168 A solvent column) -- step 2 only needs a
