@@ -44,8 +44,21 @@ and hexadecane itself as the reference for the correction term):
    native rule) for every cross pair term. Smoke-tested for both
    species: the merged.data + merged_pair_coeffs.lmp pair loads and
    evaluates cleanly in LAMMPS (finite energies, no errors).
-4. minimize / nvt / npt slab(species)  - LAMMPS equilibration near the
-   surface.
+4. minimize / nvt equilibrate_merged(species) - DONE, see
+   rules/step2_equilibrate.smk and lmp/equilibrate_merge.lmp.template:
+   minimize (substrate frozen via setforce 0 0 0) then NVT (substrate
+   simply never given an integrator fix, so `run` never moves it) in one
+   continuous LAMMPS session -- confirmed live 2026-11-06 this must NOT be
+   split across separate `lmp` invocations, since `bond_style hybrid
+   harmonic`'s coefficients did not survive either a write_data/read_data
+   or a write_restart/read_restart round trip reliably. Verified for both
+   species: minimization converges cleanly on the energy-tolerance
+   criterion in ~220 steps (no NaN/blow-up), and the NVT stage holds the
+   mobile liquid at the target temperature (confirmed via a group-scoped
+   `compute mobtemp mobile temp` -- the plain `temp` thermo column reads
+   low because it normalizes by the frozen substrate's DOF too, even
+   though those atoms carry zero kinetic energy; the thermostat itself was
+   never affected, only that display column).
 5. production_slab(species)            - longer LAMMPS run, dump a
    z-resolved density profile for the fragment and for hexadecane.
 6. compute_chis                        - python: read the two density

@@ -89,9 +89,9 @@ slab:
   # wrap-around seam where the liquid's top meets the substrate's own
   # bottom face again) in the fully 3D-periodic sandwich this pipeline
   # merges onto -- just enough to avoid a severe initial steric clash
-  # before stage 4's energy minimization (not yet written) relaxes the
-  # interface properly; not meant to be a physically meaningful spacing
-  # on its own.
+  # before stage 4's energy minimization (rules/step2_equilibrate.smk)
+  # relaxes the interface properly; not meant to be a physically
+  # meaningful spacing on its own.
   dilute_phi: 0.01 # upper-bound sanity check, not a sizing formula -- see
   # rules/step2_dilute.smk's module docstring: a single fragment in any
   # reasonably-sized solvent box is already far more dilute than this
@@ -132,6 +132,42 @@ slab:
   nvt_ps: 50
   npt_ps: 200
   npt_discard_ps: 50
+
+  # Step 2 chis stage 4 (rules/step2_equilibrate.smk): LAMMPS
+  # minimize+NVT of the merged substrate/liquid slab. merge_cutoff_angstrom
+  # matches GROMACS's rvdw/rcoulomb=1.1 nm (mdp/npt_semiiso.mdp) so the
+  # merged system's nonbonded treatment stays consistent with how the
+  # liquid was actually equilibrated; merge_kspace_accuracy matches
+  # substrate_creation's own value below (no reason for the two to differ
+  # once merged into one system).
+  merge_cutoff_angstrom: 11.0
+  merge_kspace_accuracy: 1.0e-4
+  merge_minimize:
+    # NOTE on E_vdwl: it stays large and positive (~1e5 kcal/mol)
+    # throughout -- confirmed live 2026-11-06 this is NOT the interface
+    # clash it looks like. The bare substrate alone (no liquid at all)
+    # already has E_vdwl ~+104000 kcal/mol under this same force field:
+    # for this ionic force field, the LJ channel mostly encodes
+    # short-range Pauli repulsion between ions, with the actual cohesion
+    # carried by the (hugely negative) Coulomb terms -- normal for an
+    # ionic/ceramic system, not something minimization should or could
+    # drive toward zero. The ACTUAL interface-specific strain is the
+    # (tiny, ~few hundred kcal/mol) difference between the merged
+    # system's E_vdwl and (bare substrate + bare organic liquid)'s E_vdwl
+    # summed separately -- that is what this minimization resolves, and
+    # it does, well within a few hundred steps.
+    etol: 1.0e-6
+    ftol: 1.0e-8
+    maxiter: 1000
+    maxeval: 10000
+  # LAMMPS/InterMol wrote every bond (including GROMACS's LINCS-
+  # constrained X-H bonds) as an explicit flexible harmonic bond, not a
+  # SHAKE constraint -- confirmed live 2026-11-06 this needs a smaller
+  # timestep than GROMACS's 2 fs (mdp files) to stay stable; see
+  # lmp/equilibrate_merge.lmp.template's comment.
+  merge_nvt_timestep_fs: 0.5
+  merge_nvt_ps: 20
+  merge_nvt_seed: 12345
   # Deliberately much smaller than the nanogap repo's production slab
   # (16.0 x 15.5 x 5.0 nm, 126720 atoms, sized for a confined single-polymer
   # shear simulation with a ~168 A solvent column) -- step 2 only needs a

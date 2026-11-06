@@ -16,14 +16,19 @@ explicit cross pair_coeffs are ever written.
 Smoke-tested live 2026-11-06 for ST: the merged.data + merged_pair_coeffs.lmp
 pair loads and evaluates cleanly in LAMMPS (`read_data` + `run 0`, pair_style
 lj/cut/coul/long 11.0 11.0, kspace_style pppm 1.0e-4, pair_modify mix
-geometric) -- E_vdwl is large and positive (~1e5 kcal/mol), expected for a
-freshly-placed, unrelaxed interface and exactly what stage 4's energy
-minimization (not yet written) needs to resolve, not a sign of a broken
-merge.
+geometric). E_vdwl comes out large and positive (~1e5 kcal/mol) -- this
+looks alarming but is NOT an interface clash: the bare substrate alone
+(no liquid at all) already has E_vdwl ~+104000 kcal/mol under this same
+force field (confirmed live), since for this ionic force field the LJ
+channel mostly encodes short-range Pauli repulsion between ions while the
+actual cohesion is carried by the (hugely negative) Coulomb terms -- see
+config.yaml's slab.merge_minimize comment for the actual (small) interface
+strain this merge introduces, and step2_equilibrate.smk for how it gets
+resolved.
 
-STATUS: scaffolded and smoke-tested for ST; not yet run for MMA, not
-wired into an actual Snakemake-level LAMMPS energy check here (that
-belongs to stage 4's minimize rule).
+STATUS: DONE. Smoke-tested for both ST and MMA, and now exercised
+end-to-end by stage 4's minimize+NVT run (rules/step2_equilibrate.smk) for
+both species.
 """
 
 SLAB_RES = "results/slab"  # shared with step2_dilute.smk/step2_convert.smk

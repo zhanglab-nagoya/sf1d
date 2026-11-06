@@ -1,0 +1,91 @@
+# Stage 4: minimize + NVT equilibration of the merged substrate/liquid
+# slab, in ONE continuous LAMMPS session -- confirmed live 2026-11-06
+# that splitting these into two separate `lmp` invocations (minimize,
+# write a checkpoint, NVT re-reads it) is NOT robust for this system's
+# `bond_style hybrid harmonic`: write_data silently drops its Bond/Angle/
+# Dihedral Coeffs sections regardless of type count, and read_restart
+# across invocations lost bond coeffs too (inconsistently, worse after
+# deduplicating down to a handful of types, not better -- see
+# scripts/dedup_lammps_bonded_types.py's docstring for the deduplication
+# itself, which is still worth doing on its own merits, just not
+# sufficient for this). Keeping both stages in one session sidesteps the
+# whole class of problem: there is no serialize/deserialize boundary to
+# get wrong.
+#
+# Both stages freeze the substrate (it was already relaxed on its own
+# terms by step2_substrate.smk and should not be re-relaxed or thermally
+# perturbed here -- this pipeline treats it as a static wall, matching
+# sf1d's own SCF model): `fix setforce 0 0 0` for minimize (which moves
+# every atom regardless of any time-integration group), simply no
+# integrator fix at all for the NVT `run` (which only moves atoms
+# covered by one).
+#
+# No barostat for the NVT stage: the liquid's own density was already
+# set by GROMACS's NPT (step2_dilute.smk) and carried through unchanged
+# by the merge; a box rescale here would also rescale the frozen
+# substrate's absolute coordinates. timestep is deliberately smaller
+# than GROMACS's 2 fs: InterMol wrote every bond (including the X-H
+# bonds GROMACS treated as LINCS constraints) as an explicit flexible
+# harmonic bond, not a SHAKE constraint -- confirmed live 2026-11-06,
+# {{ params.timestep_fs }} fs ran stably (no energy blow-up) over a
+# short test.
+units real
+atom_style full
+boundary p p p
+
+bond_style hybrid harmonic
+angle_style hybrid harmonic
+dihedral_style hybrid multi/harmonic
+special_bonds lj 0.0 0.0 0.5 coul 0.0 0.0 0.5
+
+read_data merged.data
+
+pair_style lj/cut/coul/long {{ params.cutoff }}
+kspace_style pppm {{ params.kspace_accuracy }}
+include merged_pair_coeffs.lmp
+pair_modify mix geometric
+
+group mobile type 1:{{ params.n_org_types }}
+group substrate type {{ params.n_org_types + 1 }}:{{ params.n_org_types + 2 }}
+velocity substrate set 0.0 0.0 0.0
+
+neighbor 2.0 bin
+neigh_modify every 1 delay 0 check yes
+
+thermo 50
+thermo_style custom step pe ebond eangle edihed evdwl ecoul elong
+
+# --- Stage 4a: minimize (see module docstring on why E_vdwl stays large
+# and positive throughout -- that is the substrate's own normal
+# ionic-LJ baseline, not an unresolved clash) ---
+min_style cg
+fix freeze_substrate substrate setforce 0.0 0.0 0.0
+minimize {{ params.etol }} {{ params.ftol }} {{ params.maxiter }} {{ params.maxeval }}
+unfix freeze_substrate
+
+write_data minimized.data
+write_restart minimized.restart
+
+# --- Stage 4b: NVT equilibration of the liquid only ---
+velocity mobile create {{ params.temperature_K }} {{ params.seed }} mom yes rot yes dist gaussian
+
+timestep {{ params.timestep_fs }}
+thermo 500
+
+# `fix nvt` on group `mobile` already thermostats correctly (it builds its
+# own temperature compute scoped to that group's real DOF). But the plain
+# `temp` keyword in thermo_style resolves to the default "all"-group
+# compute, which divides by (3*N_all - 3) even though the frozen substrate
+# contributes zero kinetic energy -- confirmed live 2026-11-06: that column
+# read ~192 K at a 300 K target, while c_mobtemp (below) read ~300 K, in
+# exactly the ratio predicted by (3*N_all-3)/(3*N_mobile-3). The dynamics
+# were never wrong, only this display.
+compute mobtemp mobile temp
+thermo_style custom step c_mobtemp pe ebond eangle edihed evdwl ecoul elong
+
+fix 1 mobile nvt temp {{ params.temperature_K }} {{ params.temperature_K }} 100.0
+
+run {{ params.nsteps }}
+
+write_data nvt.data
+write_restart nvt.restart

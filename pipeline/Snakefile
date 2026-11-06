@@ -20,6 +20,7 @@ include: "rules/step2_substrate.smk"
 include: "rules/step2_dilute.smk"
 include: "rules/step2_convert.smk"
 include: "rules/step2_merge.smk"
+include: "rules/step2_equilibrate.smk"
 include: "rules/step2_chis.smk"
 include: "rules/step3_validate.smk"
 

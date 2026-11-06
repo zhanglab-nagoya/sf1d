@@ -60,7 +60,17 @@ rule gmx_trjconv_whole:
 rule convert_to_lammps:
     """See scripts/gmx_to_lammps.py's docstring for why this goes through
     InterMol's Python API rather than its CLI (the --define LOPLS below
-    is the whole reason)."""
+    is the whole reason).
+
+    Also deduplicates bond/angle/dihedral types right after conversion
+    (scripts/dedup_lammps_bonded_types.py) -- InterMol gives every
+    individual bond/angle/dihedral its own unique type (e.g. 14773 "bond
+    types" for 14773 bonds, confirmed live 2026-11-06 to collapse to just
+    8 actually-distinct parameter sets), which breaks LAMMPS's own
+    restart-file serialization for `bond_style hybrid` once the type
+    count gets this large (needed downstream by
+    step2_equilibrate.smk's minimize->NVT handoff) -- see that script's
+    docstring."""
     input:
         top=f"{SLAB_RES}/{{species}}/topol.top",
         gro=f"{SLAB_RES}/{{species}}/unwrapped.gro",
@@ -69,8 +79,11 @@ rule convert_to_lammps:
         lmp_data=f"{SLAB_RES}/{{species}}/converted.lmp",
     params:
         oname=f"{SLAB_RES}/{{species}}/converted",
+        raw_lmp=f"{SLAB_RES}/{{species}}/converted_raw.lmp",
     localrule: True
     shell:
         "bash -lc 'module load intermol >/dev/null 2>&1 && "
         "python scripts/gmx_to_lammps.py {input.top} {input.gro} "
-        "-o {params.oname} --define LOPLS'"
+        "-o {params.oname} --define LOPLS' && "
+        "mv {output.lmp_data} {params.raw_lmp} && "
+        "python scripts/dedup_lammps_bonded_types.py {params.raw_lmp} -o {output.lmp_data}"
