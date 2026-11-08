@@ -13,7 +13,7 @@ and relying on geometric mixing (already each force field's own native
 combination rule) for every organic<->substrate cross pair term, so no
 explicit cross pair_coeffs are ever written.
 
-Smoke-tested live 2026-11-06 for ST: the merged.data + merged_pair_coeffs.lmp
+Smoke-tested live 2026-11-06 for ST: the merged.data + merged_coeffs.lmp
 pair loads and evaluates cleanly in LAMMPS (`read_data` + `run 0`, pair_style
 lj/cut/coul/long 11.0 11.0, kspace_style pppm 1.0e-4, pair_modify mix
 geometric). E_vdwl comes out large and positive (~1e5 kcal/mol) -- this
@@ -41,7 +41,7 @@ rule merge_with_substrate:
         substrate_data=config["slab"]["substrate_data"],
     output:
         data=f"{SLAB_RES}/{{species}}/merged.data",
-        pair_coeffs=f"{SLAB_RES}/{{species}}/merged_pair_coeffs.lmp",
+        coeffs=f"{SLAB_RES}/{{species}}/merged_coeffs.lmp",
     params:
         gap=config["slab"]["merge_gap_angstrom"],
     wildcard_constraints:
@@ -51,4 +51,4 @@ rule merge_with_substrate:
         "python scripts/merge_slab.py "
         "--organic-data {input.organic_data} --organic-input {input.organic_input} "
         "--substrate-data {input.substrate_data} --gap {params.gap} "
-        "-o {output.data} --out-pair-coeffs {output.pair_coeffs}"
+        "-o {output.data} --out-coeffs {output.coeffs}"

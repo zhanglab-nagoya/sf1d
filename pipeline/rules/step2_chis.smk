@@ -42,28 +42,30 @@ and hexadecane itself as the reference for the correction term):
    no kspace_modify slab correction needed), offsetting atom/molecule/
    type IDs and relying on geometric mixing (both force fields' own
    native rule) for every cross pair term. Smoke-tested for both
-   species: the merged.data + merged_pair_coeffs.lmp pair loads and
+   species: the merged.data + merged_coeffs.lmp pair loads and
    evaluates cleanly in LAMMPS (finite energies, no errors).
-4. minimize / nvt equilibrate_merged(species) - DONE, see
-   rules/step2_equilibrate.smk and lmp/equilibrate_merge.lmp.template:
-   minimize (substrate frozen via setforce 0 0 0) then NVT (substrate
-   simply never given an integrator fix, so `run` never moves it) in one
-   continuous LAMMPS session -- confirmed live 2026-11-06 this must NOT be
-   split across separate `lmp` invocations, since `bond_style hybrid
-   harmonic`'s coefficients did not survive either a write_data/read_data
-   or a write_restart/read_restart round trip reliably. Verified for both
-   species: minimization converges cleanly on the energy-tolerance
-   criterion in ~220 steps (no NaN/blow-up), and the NVT stage holds the
-   mobile liquid at the target temperature (confirmed via a group-scoped
-   `compute mobtemp mobile temp` -- the plain `temp` thermo column reads
-   low because it normalizes by the frozen substrate's DOF too, even
-   though those atoms carry zero kinetic energy; the thermostat itself was
-   never affected, only that display column).
-5. production_slab(species)            - IN PROGRESS, same LAMMPS session
-   as stage 4 (rules/step2_equilibrate.smk, lmp/equilibrate_merge.lmp.template
-   -- appended rather than a separate rule/template, for the same
-   restart-serialization reason stage 4 itself is one session). Dumps a
-   z-resolved number-density profile for the fragment group (molecule
+4. minimize / nvt equilibrate_merged(species) - DONE, originally one
+   continuous LAMMPS session (rules/step2_equilibrate.smk,
+   lmp/equilibrate_merge.lmp.template) since `bond_style hybrid
+   harmonic`'s coefficients did not survive a write_data/read_data or
+   write_restart/read_restart round trip reliably between separate `lmp`
+   invocations (confirmed live 2026-11-06). Rewritten 2026-11-08 into
+   separate per-stage rules (rules/step2_equilibrate.smk,
+   lmp/minimize.lmp.template + lmp/npt_z.lmp.template + others) once
+   that was fixed at the source instead -- see
+   rules/step2_equilibrate.smk's module docstring. Verified for both
+   species (original monolithic version): minimization converges cleanly
+   on the energy-tolerance criterion in ~220 steps (no NaN/blow-up), and
+   the NVT stage holds the mobile liquid at the target temperature
+   (confirmed via a group-scoped `compute mobtemp mobile temp` -- the
+   plain `temp` thermo column reads low because it normalizes by the
+   frozen substrate's DOF too, even though those atoms carry zero kinetic
+   energy; the thermostat itself was never affected, only that display
+   column).
+5. production_slab(species)            - IN PROGRESS (see STATUS below
+   for what the first real run found and rules/step2_equilibrate.smk for
+   the since-rewritten z-equilibration/fragment-placement design meant to
+   fix it). Dumps a z-resolved number-density profile for the fragment group (molecule
    1:3) and the hexadecane group (molecule 4:max_org_molid) via
    `fix ave/chunk`, 1 Angstrom bins. config.yaml's slab.production_ns
    (10 ns as of 2026-11-06) was sized from a real flow2-ai throughput
@@ -103,8 +105,10 @@ fragment's own populated bins across all 199 windows for both species),
 but the result is NOT a usable chis_x: for BOTH species, the single
 fragment molecule was already at one fixed location (near the box's
 periodic z-seam) by the start of production and never moved from it
-across the full 10 ns -- see lmp/equilibrate_merge.lmp.template's
-periodic-sandwich design. For ST that location is on the INVALID face
+across the full 10 ns -- see scripts/merge_slab.py's periodic-sandwich
+design, and rules/step2_equilibrate.smk's module docstring for the
+root cause (an under-equilibrated box z-length) and the since-rewritten
+fix. For ST that location is on the INVALID face
 (a real ~10 A vacuum gap formed there instead of the intended liquid-
 substrate contact -- the fragment is stuck at a liquid/vacuum free
 surface, not the Fe2O3 substrate), giving phi_contact=phi_bulk=0 (chis_A

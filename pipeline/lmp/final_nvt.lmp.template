@@ -1,0 +1,14 @@
+# Stage 4e: final NVT equilibration, restraint released, box length fixed
+# at whatever stage npt_z/restrained_npt settled on (no barostat from
+# here on).
+{% include "_common_setup.lmp.template" %}
+
+thermo 500
+thermo_style custom step c_mobtemp pe ebond eangle edihed evdwl ecoul elong
+
+fix 1 mobile nvt temp {{ params.temperature_K }} {{ params.temperature_K }} 100.0
+
+run {{ params.nsteps }}
+
+write_data nvt.data
+write_restart nvt.restart

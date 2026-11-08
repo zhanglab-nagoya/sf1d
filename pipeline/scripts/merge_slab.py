@@ -28,14 +28,27 @@ Design choices, both deliberate:
    pair_coeff values (parsed from converted.input) and the substrate's
    (parsed from substrate_minimized.data's own "Pair Coeffs" section,
    offset by the organic atom-type count) are written to a small sidecar
-   file instead (merged_pair_coeffs.lmp), for the next stage's run
-   scripts to `include` alongside a single, consistent
+   file instead (merged_coeffs.lmp), for the next stage's run scripts to
+   `include` alongside a single, consistent
    `pair_style`/`kspace_style`/`pair_modify mix geometric` -- geometric
    mixing is already the combination rule BOTH force fields use (OPLS-AA
    for the organic side, confirmed by converted.input's own
    `pair_modify mix geometric` line; INTERFACE/OPLS-CVFF for the
    substrate, see forcefield/substrate/README.md), so no explicit
    organic<->substrate cross terms are needed at all.
+
+   The same sidecar also carries explicit `bond_coeff`/`angle_coeff`/
+   `dihedral_coeff` commands, one per row already written into this
+   merged data file's own Bond/Angle/Dihedral Coeffs sections (same
+   `bond_style hybrid harmonic` etc. rows, just also emitted as LAMMPS
+   commands) -- added 2026-11-08 once step 2 chis stages 4-5 moved from
+   one continuous LAMMPS session to separate Snakemake rules chained by
+   `write_data`/`read_data`. `write_data` silently drops hybrid-style
+   Bond/Angle/Dihedral Coeffs sections (confirmed live 2026-11-06), so
+   every stage after the first needs these re-supplied explicitly rather
+   than relying on its own checkpoint file to carry them -- exactly the
+   same reason pair_coeff commands already live in this sidecar rather
+   than in the data file.
 
 Atom IDs, types, and molecule IDs are offset/renumbered so the two sides
 never collide: organic keeps its own IDs/types unchanged (1..n_org_atoms,
@@ -135,7 +148,7 @@ def main():
     ap.add_argument("--substrate-data", required=True)
     ap.add_argument("--gap", type=float, default=3.0, help="buffer gap in Angstrom at each substrate/liquid/periodic-wrap interface")
     ap.add_argument("-o", "--out-data", required=True)
-    ap.add_argument("--out-pair-coeffs", required=True)
+    ap.add_argument("--out-coeffs", required=True, help="sidecar: pair_coeff + bond/angle/dihedral_coeff commands")
     args = ap.parse_args()
 
     org_header, org_box, org_sections = read_data_sections(args.organic_data)
@@ -253,15 +266,26 @@ def main():
         new_type = int(fields[0]) + n_org_types
         out_masses.append(f"{new_type} {fields[1]}")
 
-    # --- combined pair coeffs sidecar --------------------------------
+    # --- combined coeffs sidecar (pair_coeff + bond/angle/dihedral_coeff,
+    # see module docstring point 2) ------------------------------------
     combined_pair_coeffs = dict(org_pair_coeffs)
     for old_type, (eps, sigma) in sub_pair_coeffs.items():
         combined_pair_coeffs[old_type + n_org_types] = (eps, sigma)
 
-    with open(args.out_pair_coeffs, "w") as fh:
+    with open(args.out_coeffs, "w") as fh:
         for t in sorted(combined_pair_coeffs):
             eps, sigma = combined_pair_coeffs[t]
             fh.write(f"pair_coeff {t} {t} {eps:.7f} {sigma:.7f}\n")
+        # Organic-only (substrate has no bonds/angles/dihedrals at all);
+        # each row is already "N style params..." in org_sections, the
+        # exact argument order bond_coeff/angle_coeff/dihedral_coeff take.
+        for coeff_section, command in (
+            ("Bond Coeffs", "bond_coeff"),
+            ("Angle Coeffs", "angle_coeff"),
+            ("Dihedral Coeffs", "dihedral_coeff"),
+        ):
+            for line in org_sections.get(coeff_section, []):
+                fh.write(f"{command} {line.strip()}\n")
 
     # --- write merged data file --------------------------------------
     n_atoms = n_org_atoms + sub_header["atoms"]

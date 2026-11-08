@@ -1,0 +1,30 @@
+# Stage 5: production NVT, with z-resolved number-density profiles for
+# the fragment and for hexadecane (chis_x reads the contact-vs-bulk ratio
+# off these, forcefield/chi_chis_from_md.md step 2). One shared
+# compute chunk/atom bins the whole box along z (origin 0.0 handles the
+# box's slightly-negative xlo/ylo/zlo from merge_slab.py fine -- LAMMPS
+# bins via floor((x-origin)/delta), which is well-defined for negative x
+# too); two separate `fix ave/chunk` average each group's atom count into
+# those bins. Deliberately NOT "ave running": keeping each window's
+# average independent (the default) lets scripts/compute_chis.py check
+# whether the profile is still drifting late in the run (a single
+# fragment molecule's sampling of contact-vs-bulk could in principle not
+# have converged in any finite run -- see config.yaml's
+# slab.production_ns comment) instead of silently trusting one
+# cumulative number.
+{% include "_common_setup.lmp.template" %}
+
+thermo_style custom step c_mobtemp pe ebond eangle edihed evdwl ecoul elong
+
+fix 1 mobile nvt temp {{ params.temperature_K }} {{ params.temperature_K }} 100.0
+
+compute cz all chunk/atom bin/1d z 0.0 {{ params.bin_width_angstrom }} units box
+
+fix dfrag fragment ave/chunk {{ params.chunk_nevery }} {{ params.chunk_nrepeat }} {{ params.chunk_nfreq }} cz density/number file fragment_density.profile
+fix dhex hexadecane ave/chunk {{ params.chunk_nevery }} {{ params.chunk_nrepeat }} {{ params.chunk_nfreq }} cz density/number file hexadecane_density.profile
+
+thermo {{ params.chunk_nfreq }}
+run {{ params.production_nsteps }}
+
+write_data production.data
+write_restart production.restart

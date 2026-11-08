@@ -103,7 +103,7 @@ def parse_density_profile(path):
     """fix ave/chunk density/number output -> (timesteps, coords, dens),
     dens shape (n_windows, n_bins), coords shape (n_bins,) -- bin centers,
     identical across windows (one shared `compute chunk/atom` for both
-    species' fixes, lmp/equilibrate_merge.lmp.template)."""
+    species' fixes, lmp/production.lmp.template)."""
     with open(path) as fh:
         lines = fh.readlines()
     timesteps, coords, dens = [], None, []

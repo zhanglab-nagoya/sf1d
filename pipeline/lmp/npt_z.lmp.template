@@ -1,0 +1,52 @@
+# Stage 4b: z-direction density equilibration, substrate + lateral (x,y)
+# box fixed. x,y are never barostatted (no x/y keyword below) so the box
+# stays commensurate with the substrate's lattice throughout, the same
+# constraint GROMACS's own npt_semiiso.mdp respects in step2_dilute.smk.
+#
+# `fix press/berendsen`, NOT `fix npt`/Nose-Hoover -- confirmed live
+# 2026-11-08 by direct comparison on this exact system (ST's
+# merged.data): `fix npt mobile npt ... z 1.0 1.0 1000.0 dilate mobile`
+# never converges here at all, not even to a self-consistent non-literal
+# target -- temperature ran away to a stable-but-wrong ~465 K plateau and
+# pressure to ~137,000 atm regardless of whether the target was a
+# literal 1 atm or the system's own pre-barostat pressure reading
+# (~19,375 atm); the frozen substrate's own enormous internal ionic
+# virial (E_coul ~ -1.4e6 kcal/mol) swamps the only lever the barostat
+# has (the liquid's own volume), and Nose-Hoover's extended-Lagrangian
+# inertia turns that irreducible mismatch into a runaway heating
+# feedback loop. `fix press/berendsen` (no inertia, a direct per-step
+# volume rescale toward the target) does NOT have this failure mode:
+# with the SAME literal 1 atm target it reached a genuinely stable 300 K
+# / ~133,700 atm steady state and its z-length contracted from 109.33 to
+# 100.87 A within 0.5 ps and then held flat for the rest of a 10 ps test
+# run -- an 8.46 A contraction matching almost exactly the 8.45 A the
+# real 10 ns flow2-ai production run slowly drifted toward under passive
+# fixed-volume NVT. Found by example in the sibling
+# ../2026-10-28-generate-aa-pama repo's
+# in/335_polymer_in_solvent_on_substrate_npt/npt.lmp.template, which
+# barostats a similarly substrate-adjacent liquid this same way (its own
+# `dilate partial` -- a literal value, not a group-ID, specific to
+# `press/berendsen`'s keyword syntax and different from `fix npt`'s
+# `dilate <group-ID>`, confirmed live 2026-11-08 the two are not
+# interchangeable) with `barostat_damping: 25000` (fs) and `modulus:
+# 10000` (atm, a plausible bulk modulus for a simple alkane liquid) --
+# reused here unchanged rather than re-tuned from scratch.
+#
+# `press/berendsen` only rescales volume, it has no thermostat of its
+# own (unlike `fix npt`) -- a separate `fix nvt` controls temperature.
+{% include "_common_setup.lmp.template" %}
+
+thermo 500
+thermo_style custom step c_mobtemp c_mobpress pe evdwl ecoul elong
+
+fix npt_z_temp mobile nvt temp {{ params.temperature_K }} {{ params.temperature_K }} 100.0
+fix npt_z mobile press/berendsen z {{ params.pressure_atm }} {{ params.pressure_atm }} &
+    {{ params.pressure_damp_fs }} modulus {{ params.modulus_atm }} dilate partial
+
+run {{ params.npt_z_nsteps }}
+
+unfix npt_z
+unfix npt_z_temp
+
+write_data npt_equilibrated.data
+write_restart npt_equilibrated.restart

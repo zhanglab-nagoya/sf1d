@@ -164,12 +164,13 @@ slab:
   # constrained X-H bonds) as an explicit flexible harmonic bond, not a
   # SHAKE constraint -- confirmed live 2026-11-06 this needs a smaller
   # timestep than GROMACS's 2 fs (mdp files) to stay stable; see
-  # lmp/equilibrate_merge.lmp.template's comment.
+  # lmp/minimize.lmp.template's comment.
   merge_nvt_timestep_fs: 0.5
   merge_nvt_ps: 20
   merge_nvt_seed: 12345
 
-  # Stage 4b/4d (rules/step2_equilibrate.smk, lmp/equilibrate_merge.lmp.template):
+  # Stage 4b/4d (rules/step2_equilibrate.smk, lmp/npt_z.lmp.template,
+  # lmp/restrained_npt.lmp.template):
   # z-direction barostat equilibration, added 2026-11-08 after confirming
   # live that the old fixed-volume NVT left a real ~10 A vacuum gap for
   # ST and an asymmetric density profile for MMA -- the box's z-length
@@ -212,21 +213,27 @@ slab:
   # npt_equilibrated.data's z-length is still visibly drifting at the
   # end of this stage.
   npt_z_ps: 100
-  # After stage 4b, the fragment is moved (via LAMMPS's own xcm()/
-  # displace_atoms, see the template) to the middle of the now-
-  # equilibrated liquid arc, replacing whatever position
-  # step2_dilute.smk's GROMACS packing happened to leave it at -- that
-  # arbitrary starting position, not a deliberate choice, is exactly
-  # what got swept to the box's periodic seam within the first 20 ps of
-  # the old NVT stage (see module docstring). Dropping it into
-  # already-occupied solvent needs the solvent to relax around it before
-  # production; restraining the fragment to its new position
-  # (`spring/self`, like a GROMACS position restraint) while the
-  # z-barostat (now scoped to `hexadecane` only) continues keeps it from
-  # drifting straight back to the seam during that relaxation. Chosen to
-  # be "short" per the GROMACS posres convention (just long enough for
-  # local steric/solvation relaxation, not a full equilibration in its
-  # own right -- the final unrestrained NVT below still runs after this).
+  # After stage 4b, scripts/insert_fragment.py moves the fragment to the
+  # middle of the now-equilibrated liquid arc, replacing whatever
+  # position step2_dilute.smk's GROMACS packing happened to leave it at
+  # -- that arbitrary starting position, not a deliberate choice, is
+  # exactly what got swept to the box's periodic seam within the first
+  # 20 ps of the old NVT stage (see rules/step2_equilibrate.smk's module
+  # docstring). A rigid translation drops it straight into whatever
+  # hexadecane already occupied that spot; this is how close a
+  # hexadecane atom can be to any (already-moved) fragment atom before
+  # its whole molecule gets removed rather than relaxed through --
+  # slightly above the largest organic LJ sigma seen in
+  # merged_coeffs.lmp (~3.55 A), so a flagged pair is a genuine clash,
+  # not just a normal near-neighbor distance.
+  fragment_insert_clash_angstrom: 4.0
+  # Restraining the fragment to its new position (`spring/self`, like a
+  # GROMACS position restraint) while the z-barostat (scoped to
+  # `hexadecane` only) continues keeps it from drifting straight back to
+  # the seam while the solvent relaxes around it. Chosen to be "short"
+  # per the GROMACS posres convention (just long enough for local
+  # steric/solvation relaxation, not a full equilibration in its own
+  # right -- the final unrestrained NVT below still runs after this).
   fragment_restraint_k_kcal_per_mol_A2: 5.0
   restrained_npt_ps: 20
 

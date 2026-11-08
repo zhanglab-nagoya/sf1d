@@ -8,19 +8,24 @@ Professional supercomputer, via its generative-AI login nodes
 
 Step 0/1's bulk GROMACS rules (`bulk_em`, `bulk_nvt`, `bulk_npt`,
 `bulk_density`) go through PBS here — the same scope `rule all` targets
-today (see `../../README.md`). Step 2's stage 4+5 LAMMPS rule
-(`lmp_equilibrate_merged`, `rules/step2_equilibrate.smk`) is sized in
-`config.yaml` too, from a real throughput benchmark (job 102982.jobm,
-2026-11-06: 48 OpenMP threads / 1 NUMA gave 17.4x over the workstation,
-6.8 ns/day for this ~23.5k-atom merged slab) — but its own production
-runs (103064.jobm ST, 103065.jobm MMA, both 2026-11-06) were submitted
-by hand via `qsub`, not through this Snakemake profile: there's no
-conda env with `intermol`/`polyply`/`gmx_mpi` on flow2-ai yet (step 2's
+today (see `../../README.md`). Step 2's stage 4+5 LAMMPS rules
+(`rules/step2_equilibrate.smk` -- `lmp_slab_minimize`, `lmp_npt_z`,
+`lmp_insert_minimize`, `lmp_restrained_npt`, `lmp_final_nvt`,
+`lmp_production`, rewritten 2026-11-08 from one `lmp_equilibrate_merged`
+rule into this per-stage shape) are each sized in `config.yaml`, mostly
+from the same real throughput benchmark (job 102982.jobm, 2026-11-06:
+48 OpenMP threads / 1 NUMA gave 17.4x over the workstation, 6.8 ns/day
+for this ~23.5k-atom merged slab) applied to each stage's own step
+count -- only `lmp_production`'s walltime is itself benchmark-derived
+end to end, the rest are padded estimates, not yet run on flow2-ai (see
+`config.yaml`'s own comment). The *previous* stage 4+5's production runs
+(103064.jobm ST, 103065.jobm MMA, both 2026-11-06) were submitted by
+hand via `qsub`, not through this Snakemake profile: there's no conda
+env with `intermol`/`polyply`/`gmx_mpi` on flow2-ai yet (step 2's
 upstream GROMACS-build-then-convert-then-merge stages were all run
 locally, then just the already-merged `results/slab/{species}/` files
-were `scp`'d over for the LAMMPS stage alone). The `lmp_equilibrate_merged`
-set-resources entry is the right sizing for whenever that fuller
-integration happens.
+were `scp`'d over for the LAMMPS stage alone). The set-resources entries
+below are the right sizing for whenever that fuller integration happens.
 
 ## One-time setup on flow2-ai
 

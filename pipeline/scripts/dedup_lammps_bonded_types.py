@@ -7,15 +7,20 @@ set) -- confirmed live 2026-11-06: converted.lmp's 14773 "bond types"
 collapse to just 8 actually-distinct (style, params) tuples, and its
 28942 "angle types" to 9. This is wasteful on its own, but it also
 breaks something concrete downstream: LAMMPS's restart-file
-serialization for `bond_style hybrid` (needed to carry per-type coeffs
-between step2_equilibrate.smk's minimize and NVT stages, since
-`write_data` silently drops Bond/Angle/Dihedral Coeffs sections for this
-many-type hybrid setup) truncates the last several dozen bond types'
-coefficients ("is not set" on read_restart) once the type count gets
-this large -- a LAMMPS-side limitation, not something to work around
-file-format-by-file-format. Collapsing to the true, small number of
-distinct types sidesteps it entirely and is also just the normal,
+serialization for `bond_style hybrid` truncates the last several dozen
+bond types' coefficients ("is not set" on read_restart) once the type
+count gets this large -- a LAMMPS-side limitation, not something to work
+around file-format-by-file-format. Collapsing to the true, small number
+of distinct types sidesteps it entirely and is also just the normal,
 intended way to use `bond_style hybrid`.
+
+This small type count is also what makes it cheap to re-supply
+bond/angle/dihedral coefficients explicitly as `bond_coeff`/
+`angle_coeff`/`dihedral_coeff` commands in every one of
+rules/step2_equilibrate.smk's now-separate per-stage LAMMPS rules
+(scripts/merge_slab.py's `merged_coeffs.lmp` sidecar, added 2026-11-08) --
+without this dedup there would be thousands of coefficient lines to carry
+across every `read_data`/`include`, not 33.
 """
 
 import argparse

@@ -84,30 +84,57 @@ set-resources:
     ompthreads: 48
     time: "04:00:00"   # config.yaml bulk.npt_ps = 500 ps
 
-  # Step 2 chis stage 4+5 (rules/step2_equilibrate.smk): the merged
+  # Step 2 chis stages 4+5 (rules/step2_equilibrate.smk): the merged
   # substrate/liquid slab (~23.5k atoms -- NOT the full standalone
   # fe2o3.data substrate, ~127k atoms, which never runs dynamics on its
   # own after step2_substrate.smk) is a single-NUMA job, not an exclusive
   # node: sized from a real throughput benchmark here, job 102982.jobm,
   # 2026-11-06 -- 48 OpenMP threads (1 NUMA, t1-share) gave 17.4x over
   # this pipeline's workstation (0.111 s/step -> 0.00636 s/step), 6.8
-  # ns/day/species. config.yaml's slab.production_ns (10 ns as of
-  # 2026-11-06) is the dominant cost: ~35 h/species real time, padded
-  # here for scheduling safety, not for the point cost (points are
-  # charged by actual elapsed time, see flow2-ai's own ~/CLAUDE.md
-  # section 7). The stage's own production jobs (103064.jobm ST,
-  # 103065.jobm MMA) were submitted directly via qsub with a hand-written
-  # jobscript, not yet through this Snakemake profile end-to-end (no
-  # intermol/polyply/gmx_mpi conda env exists on flow2-ai yet -- the
-  # inputs were built locally and scp'd over) -- treat these set-resources
-  # as the right numbers for whenever that full integration happens, not
-  # as something already exercised through `snakemake
-  # --workflow-profile`.
-  lmp_equilibrate_merged:
+  # ns/day/species, i.e. ~6.3 ms/step. Rewritten 2026-11-08 from one
+  # `lmp_equilibrate_merged` rule into seven per-stage rules (see
+  # rules/step2_equilibrate.smk's module docstring); every one below
+  # needs its own entry since each is now a separate PBS job. Only
+  # `lmp_production`'s walltime comes from a real benchmark (same
+  # ~6.3 ms/step rate, config.yaml's slab.production_ns=10 ns -- ~35 h/
+  # species real time, padded here for scheduling safety, not point
+  # cost). The others are estimated from that same per-step rate against
+  # their own config.yaml step counts (slab.npt_z_ps, restrained_npt_ps,
+  # merge_nvt_ps) with generous padding, NOT independently benchmarked at
+  # 48 threads -- this whole per-stage split is local-workstation-only so
+  # far (smoke-tested end-to-end on ST's real data, tiny step counts),
+  # never yet run on flow2-ai; treat every walltime below as a
+  # placeholder to revisit once it has been.
+  lmp_slab_minimize:
     queue: "t1-share"
     nnumas: 1
     ompthreads: 48
-    time: "44:00:00"
+    time: "01:00:00"
+  lmp_npt_z:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "02:00:00"   # config.yaml slab.npt_z_ps = 100 ps
+  lmp_insert_minimize:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "01:00:00"
+  lmp_restrained_npt:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "01:00:00"   # config.yaml slab.restrained_npt_ps = 20 ps
+  lmp_final_nvt:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "01:00:00"   # config.yaml slab.merge_nvt_ps = 20 ps
+  lmp_production:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "44:00:00"   # config.yaml slab.production_ns = 10 ns
 
 # forcefield/substrate/fe2o3.data (~127k atoms) itself is only ever EM'd
 # once by step2_substrate.smk, not run under dynamics here -- don't size a
