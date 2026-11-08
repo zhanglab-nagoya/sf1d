@@ -77,20 +77,72 @@ and hexadecane itself as the reference for the correction term):
    contact and bulk if it adsorbs strongly -- check
    fragment_density.profile's later windows for continued drift, not
    just trust the run finished).
-6. compute_chis                        - NOT YET WRITTEN (blocked on
-   stage 5's production runs finishing). python: read the two density
-   profiles (fragment's and hexadecane's) from
-   results/slab/{species}/{fragment,hexadecane}_density.profile, take the
-   contact-layer vs. bulk ratio for each (discarding an initial
-   equilibration portion of the windows, checking the later windows for
-   convergence), and combine per forcefield/chi_chis_from_md.md step 2:
+6. compute_chis                        - WRITTEN, see rule compute_chis /
+   scripts/compute_chis.py below -- but it reveals a real sampling
+   failure in stage 5's production data, not a usable chis_x yet (see
+   STATUS below).
+
+   Reads the two density profiles per species, classifies bins into a
+   substrate-contact region (per face, validated against the solvent's
+   own density there -- see compute_chis.py's module docstring for why a
+   face can be invalid: a vacuum/free-surface edge, not a real substrate
+   contact) and a bulk region, builds a running cumulative time-average
+   over the retained windows (per-window ratios are unusable -- a single
+   fragment molecule's instantaneous density is usually exactly zero in
+   one of the two regions), and combines per
+   forcefield/chi_chis_from_md.md step 2:
 
        chis_x = ln[phi_contact,x/phi_bulk,x] - ln[phi_contact,S/phi_bulk,S]
 
-Do not add placeholder rules with `touch()`/`false` here the way
-step0_step1_bulk.smk does for vacuum_ref -- that pattern is fine for a
-single well-scoped missing piece, but this whole stage is substantial new
-work (its own box-building, conversion, and equilibration protocol) that
-deserves a real design pass, informed by the working conversion scripts in
-the generate-aa-pama repo, before any code is written here.
+STATUS: run 2026-11-08 against both species' real production data
+(103064.jobm ST, 103065.jobm MMA, both finished cleanly on flow2-ai, exit
+status 0, 34.5h/36.4h real time, profiles pulled back locally since
+flow2-ai has no conda env for this pipeline yet). The code runs and the
+region classification is correct (independently confirmed by tracing the
+fragment's own populated bins across all 199 windows for both species),
+but the result is NOT a usable chis_x: for BOTH species, the single
+fragment molecule was already at one fixed location (near the box's
+periodic z-seam) by the start of production and never moved from it
+across the full 10 ns -- see lmp/equilibrate_merge.lmp.template's
+periodic-sandwich design. For ST that location is on the INVALID face
+(a real ~10 A vacuum gap formed there instead of the intended liquid-
+substrate contact -- the fragment is stuck at a liquid/vacuum free
+surface, not the Fe2O3 substrate), giving phi_contact=phi_bulk=0 (chis_A
+= nan). For MMA that location IS a valid substrate contact, but the
+fragment never once visited the bulk region either, giving phi_bulk=0
+(chis_B = +inf). This is exactly the single-fragment convergence risk
+flagged by config.yaml's slab.production_ns comment and
+forcefield/chi_chis_from_md.md's umbrella-sampling-PMF fallback -- 10 ns
+was not enough for either species' fragment to explore both states even
+once. results/chis.yaml is NOT committed/trustworthy as of this run; see
+the pipeline's own project memory for what to try next (longer run,
+multiple independent replicas, starting the fragment in the bulk instead
+of wherever the dilute-box building happened to leave it, or switching
+straight to the PMF route) before spending more flow2-ai points on this.
 """
+
+SLAB_RES2 = "results/slab"  # same dir as step2_equilibrate.smk's SLAB_RES
+
+
+rule compute_chis:
+    input:
+        fragment_density=expand(f"{SLAB_RES2}/{{species}}/fragment_density.profile", species=["ST", "MMA"]),
+        hexadecane_density=expand(f"{SLAB_RES2}/{{species}}/hexadecane_density.profile", species=["ST", "MMA"]),
+        merged_data=expand(f"{SLAB_RES2}/{{species}}/merged.data", species=["ST", "MMA"]),
+        segment_volume="results/segment_volume.yaml",
+    output:
+        chis="results/chis.yaml",
+        diagnostics="results/chis_diagnostics.yaml",
+    params:
+        species=["ST", "MMA"],
+        n_sub_types=len(config["slab"]["substrate_creation"]["masses"]),
+        contact_width_a=config["slab"]["chis_contact_width_a"],
+        bulk_margin_a=config["slab"]["chis_bulk_margin_a"],
+        min_contact_fraction=config["slab"]["chis_min_contact_density_fraction"],
+        discard_fraction=config["slab"]["chis_discard_fraction"],
+        convergence_tol=config["slab"]["chis_convergence_tol"],
+    conda:
+        "../envs/analysis.yaml"
+    localrule: True
+    script:
+        "../scripts/compute_chis.py"

@@ -198,6 +198,42 @@ slab:
   density_chunk_nevery: 200
   density_chunk_nrepeat: 500
   density_chunk_nfreq: 100000
+
+  # Step 2 chis stage 6 (rules/step2_chis.smk, scripts/compute_chis.py):
+  # contact-vs-bulk extraction from stage 5's {fragment,hexadecane}_
+  # density.profile. Widths are multiples of the lattice segment length
+  # a = a3_nm3^(1/3) (results/segment_volume.yaml, 0.7935 nm as of
+  # 2026-11-06) -- ties the contact-layer definition to the same length
+  # scale sf1d's own SCF lattice uses, not an arbitrary Angstrom number.
+  chis_contact_width_a: 1.0
+  chis_bulk_margin_a: 2.0
+  # A substrate face only counts as a real liquid contact if its own
+  # mean hexadecane density is at least this fraction of the bulk
+  # reference density. Confirmed live 2026-11-08 this matters: ST's
+  # production run left a real ~10 A vacuum gap at the liquid's far
+  # (wrap-around) surface -- the intended "periodic sandwich" didn't
+  # fully close for that species, so a genuine liquid-vacuum free
+  # surface formed there instead of a second substrate contact -- while
+  # MMA's did wrap around and touch the substrate's other face as
+  # designed. Pooling a vacuum-bordering face into the contact average
+  # would dilute the real contact-layer signal with an unrelated
+  # free-surface effect, so each face is checked and excluded if invalid.
+  chis_min_contact_density_fraction: 0.3
+  # Fraction of the retained production windows' data to discard from
+  # the START of the run before averaging -- stage 4's own separate NVT
+  # equilibration already ran first, so this is a small extra margin,
+  # not the primary equilibration.
+  chis_discard_fraction: 0.1
+  # Heuristic only (see production_ns's comment above on the single-
+  # fragment convergence risk): flags chis_x as "not converged" if the
+  # running cumulative estimate changes by more than this between the
+  # halfway point and the end of the retained windows. Not a rigorous
+  # statistical test -- a single fragment molecule's sampling can still
+  # be wrong even if this check passes; the honest fallback for a
+  # flagged species is a longer run or the umbrella-sampling PMF route
+  # (forcefield/chi_chis_from_md.md step 2).
+  chis_convergence_tol: 0.15
+
   # Deliberately much smaller than the nanogap repo's production slab
   # (16.0 x 15.5 x 5.0 nm, 126720 atoms, sized for a confined single-polymer
   # shear simulation with a ~168 A solvent column) -- step 2 only needs a
