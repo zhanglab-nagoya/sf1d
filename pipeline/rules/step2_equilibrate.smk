@@ -1,12 +1,14 @@
-"""Step 2 chis stages 4+5: LAMMPS minimize + NVT equilibration + production
-of the merged substrate/liquid slab (results/slab/{species}/merged.data,
+"""Step 2 chis stages 4+5: LAMMPS minimize + z-NPT equilibration +
+fragment placement + restrained re-equilibration + NVT + production of
+the merged substrate/liquid slab (results/slab/{species}/merged.data,
 step2_merge.smk), in one continuous LAMMPS session -- see
 lmp/equilibrate_merge.lmp.template's module docstring for why this is
-NOT split into separate minimize/NVT/production rules: `bond_style hybrid
-harmonic`'s state didn't survive a write_data/read_data OR
-write_restart/read_restart round trip reliably between two separate
-`lmp` invocations (confirmed live 2026-11-06), and keeping every stage in
-one session sidesteps that whole problem.
+NOT split into separate rules: `bond_style hybrid harmonic`'s state
+didn't survive a write_data/read_data OR write_restart/read_restart
+round trip reliably between two separate `lmp` invocations (confirmed
+live 2026-11-06), and keeping every stage in one session sidesteps that
+whole problem -- including the fragment's repositioning, done with
+LAMMPS's own xcm()/displace_atoms rather than a second Python pass.
 
 Every stage freezes the substrate (already relaxed on its own terms by
 step2_substrate.smk and not re-relaxed or thermally perturbed here --
@@ -25,16 +27,31 @@ the OPENMP package's threaded pair/kspace/bond/angle/dihedral styles
 (`Last active /omp style is ...` in the log confirms it actually switched
 styles, not just set an unused env var).
 
-STATUS: stage 4 DONE, run end-to-end for both ST and MMA 2026-11-06:
-minimization converges cleanly on the energy-tolerance criterion in ~220
-steps (no NaN/blow-up), and NVT holds the mobile liquid at the target
-temperature (see lmp/equilibrate_merge.lmp.template's comment on why the
-thermo `temp` column itself reads low -- a display-only artifact of
-counting the frozen substrate's DOF, not a thermostat problem). Stage 5
-is scaffolded (density-profile chunking added to the same template) but
-not yet run for the real production_ns -- that run is expensive enough
-(~35 h/species on flow2-ai) that it should go through the cluster
-profile, not this workstation.
+STATUS: rewritten 2026-11-08 after the first real 10 ns/species
+production run (on flow2-ai) revealed a real ~10 A vacuum gap for ST and
+an asymmetric density profile for MMA -- traced to the old fixed-volume
+NVT stage never actually being at this merged system's true equilibrium
+density (merge_slab.py sized the box's z-length from a single raw,
+unequilibrated snapshot), and to the single fragment molecule -- started
+wherever step2_dilute.smk's GROMACS packing happened to leave it, not a
+deliberate placement -- getting swept to the box's periodic seam by that
+same under-equilibrated transient within the first 20 ps of the old NVT.
+Stages 4b-4d below (z-only barostat equilibration, deliberate fragment
+placement at the equilibrated bulk-arc midpoint, short restrained
+re-equilibration) are new. The barostat went through two real failures
+before landing on `fix press/berendsen` (see
+lmp/equilibrate_merge.lmp.template's module docstring) -- `fix npt`
+(Nose-Hoover) never converges on this system regardless of target,
+confirmed live 2026-11-08 on two independent attempts. Smoke-tested
+locally end-to-end 2026-11-08 on ST's real merged.data (tiny step counts
+-- 2 ps NPT-z, 1 ps restrained, 1 ps final NVT, 1 ps production): zero
+LAMMPS errors, temperature stable ~295-305 K through every stage, and
+the fragment -- deliberately placed at the equilibrated bulk-arc
+midpoint (z~68.75) -- was still sitting in that same bulk region
+(z~65-83, still mobile, not stuck) by the end, nowhere near the
+periodic seam. Not yet run at the real production_ns or on flow2-ai;
+that's the next step, pending the user's go-ahead given the point
+budget.
 """
 
 SLAB_RES = "results/slab"  # shared with step2_dilute.smk/convert/merge
@@ -74,6 +91,36 @@ def max_org_molid(merged_data_path):
     return max_molid - 1
 
 
+def substrate_z_range(merged_data_path):
+    """(sub_zmin, sub_zmax): the substrate's own static z-extent, read
+    directly from merged.data's Atoms section. Unaffected by any later
+    dynamics -- the substrate is always frozen -- so this is passed into
+    the template as a fixed param; stage 4c computes the equilibrated
+    liquid arc's midpoint from these plus the running session's OWN
+    zhi/zlo (which can differ from merged.data's after stage 4b's
+    barostat), not from a second Python pass over a checkpoint file."""
+    n_org = n_org_types(merged_data_path)
+    zs = []
+    in_atoms = False
+    with open(merged_data_path) as fh:
+        for line in fh:
+            stripped = line.strip()
+            if stripped == "Atoms" or stripped.startswith("Atoms "):
+                in_atoms = True
+                continue
+            if in_atoms:
+                fields = stripped.split()
+                if not fields:
+                    continue
+                if not fields[0].isdigit():
+                    break
+                if int(fields[2]) > n_org:
+                    zs.append(float(fields[6]))
+    if not zs:
+        raise ValueError(f"no substrate atoms (type > {n_org}) found in {merged_data_path}")
+    return min(zs), max(zs)
+
+
 rule render_equilibrate_merge_lmp:
     input:
         "lmp/equilibrate_merge.lmp.template",
@@ -82,6 +129,8 @@ rule render_equilibrate_merge_lmp:
     params:
         n_org_types=lambda wc, input: n_org_types(f"{SLAB_RES}/{wc.species}/merged.data"),
         max_org_molid=lambda wc, input: max_org_molid(f"{SLAB_RES}/{wc.species}/merged.data"),
+        sub_zmin=lambda wc, input: substrate_z_range(f"{SLAB_RES}/{wc.species}/merged.data")[0],
+        sub_zmax=lambda wc, input: substrate_z_range(f"{SLAB_RES}/{wc.species}/merged.data")[1],
         cutoff=config["slab"]["merge_cutoff_angstrom"],
         kspace_accuracy=config["slab"]["merge_kspace_accuracy"],
         etol=config["slab"]["merge_minimize"]["etol"],
@@ -92,6 +141,14 @@ rule render_equilibrate_merge_lmp:
         seed=config["slab"]["merge_nvt_seed"],
         timestep_fs=config["slab"]["merge_nvt_timestep_fs"],
         nsteps=lambda wc: int(config["slab"]["merge_nvt_ps"] * 1000 / config["slab"]["merge_nvt_timestep_fs"]),
+        pressure_atm=config["slab"]["npt_pressure_atm"],
+        pressure_damp_fs=config["slab"]["npt_pressure_damp_fs"],
+        modulus_atm=config["slab"]["npt_modulus_atm"],
+        npt_z_nsteps=lambda wc: int(config["slab"]["npt_z_ps"] * 1000 / config["slab"]["merge_nvt_timestep_fs"]),
+        restrained_npt_nsteps=lambda wc: int(
+            config["slab"]["restrained_npt_ps"] * 1000 / config["slab"]["merge_nvt_timestep_fs"]
+        ),
+        restraint_k=config["slab"]["fragment_restraint_k_kcal_per_mol_A2"],
         production_nsteps=lambda wc: int(
             config["slab"]["production_ns"] * 1.0e6 / config["slab"]["merge_nvt_timestep_fs"]
         ),
@@ -114,6 +171,10 @@ rule lmp_equilibrate_merged:
     output:
         minimized_data=f"{SLAB_RES}/{{species}}/minimized.data",
         minimized_restart=f"{SLAB_RES}/{{species}}/minimized.restart",
+        npt_equilibrated_data=f"{SLAB_RES}/{{species}}/npt_equilibrated.data",
+        npt_equilibrated_restart=f"{SLAB_RES}/{{species}}/npt_equilibrated.restart",
+        restrained_data=f"{SLAB_RES}/{{species}}/restrained.data",
+        restrained_restart=f"{SLAB_RES}/{{species}}/restrained.restart",
         nvt_data=f"{SLAB_RES}/{{species}}/nvt.data",
         nvt_restart=f"{SLAB_RES}/{{species}}/nvt.restart",
         production_data=f"{SLAB_RES}/{{species}}/production.data",

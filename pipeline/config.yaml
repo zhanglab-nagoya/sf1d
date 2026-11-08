@@ -169,6 +169,67 @@ slab:
   merge_nvt_ps: 20
   merge_nvt_seed: 12345
 
+  # Stage 4b/4d (rules/step2_equilibrate.smk, lmp/equilibrate_merge.lmp.template):
+  # z-direction barostat equilibration, added 2026-11-08 after confirming
+  # live that the old fixed-volume NVT left a real ~10 A vacuum gap for
+  # ST and an asymmetric density profile for MMA -- the box's z-length
+  # (set by merge_slab.py from a single raw, unequilibrated snapshot) was
+  # never at this merged system's true equilibrium density. Barostat
+  # style matters a lot here: `fix npt` (Nose-Hoover) never converges at
+  # all for this system -- confirmed live 2026-11-08, it runs away to a
+  # stable-but-wrong ~465 K / ~137,000 atm plateau regardless of target,
+  # because the frozen substrate's own enormous internal ionic virial
+  # swamps the only lever the barostat has, and Nose-Hoover's inertia
+  # turns that into a runaway feedback loop. `fix press/berendsen` (no
+  # inertia, direct per-step volume rescale) does not have this failure
+  # mode and reaches a genuinely stable state with the SAME literal
+  # target. Parameters below (including the literal 1 atm target, which
+  # does work with Berendsen despite the substrate's offset) are reused
+  # unchanged from the sibling ../2026-10-28-generate-aa-pama repo's
+  # in/335_polymer_in_solvent_on_substrate_npt/npt.lmp.template, which
+  # barostats a similarly substrate-adjacent liquid the same way -- not
+  # re-tuned from scratch. x,y are never barostatted here -- only the `z`
+  # keyword is passed -- so the box stays commensurate with the
+  # substrate's lattice throughout, same constraint GROMACS's own
+  # npt_semiiso.mdp respects in step2_dilute.smk.
+  npt_pressure_atm: 1.0
+  npt_pressure_damp_fs: 25000.0
+  # Bulk-modulus estimate `fix press/berendsen` needs to convert a
+  # pressure deviation into a volume-rescale factor -- a plausible order
+  # of magnitude for a simple alkane liquid's own compressibility (not
+  # meant to capture the substrate's own, much stiffer, modulus; the
+  # fix's only lever is the liquid's volume regardless). Same value as
+  # the sibling repo's template above.
+  npt_modulus_atm: 10000.0
+  # Confirmed live 2026-11-08 on ST's real merged.data: with
+  # press/berendsen, the z-length contracted from 109.33 to 100.87 A
+  # within 0.5 ps and then held flat for the rest of a 10 ps test run --
+  # an 8.46 A contraction matching almost exactly the 8.45 A the real
+  # 10 ns flow2-ai production run slowly drifted toward under passive
+  # fixed-volume NVT. 100 ps gives a wide margin over that observed
+  # convergence time, not yet benchmarked against watching the box
+  # length plateau over the species' own full npt_z_ps; pad further if
+  # npt_equilibrated.data's z-length is still visibly drifting at the
+  # end of this stage.
+  npt_z_ps: 100
+  # After stage 4b, the fragment is moved (via LAMMPS's own xcm()/
+  # displace_atoms, see the template) to the middle of the now-
+  # equilibrated liquid arc, replacing whatever position
+  # step2_dilute.smk's GROMACS packing happened to leave it at -- that
+  # arbitrary starting position, not a deliberate choice, is exactly
+  # what got swept to the box's periodic seam within the first 20 ps of
+  # the old NVT stage (see module docstring). Dropping it into
+  # already-occupied solvent needs the solvent to relax around it before
+  # production; restraining the fragment to its new position
+  # (`spring/self`, like a GROMACS position restraint) while the
+  # z-barostat (now scoped to `hexadecane` only) continues keeps it from
+  # drifting straight back to the seam during that relaxation. Chosen to
+  # be "short" per the GROMACS posres convention (just long enough for
+  # local steric/solvation relaxation, not a full equilibration in its
+  # own right -- the final unrestrained NVT below still runs after this).
+  fragment_restraint_k_kcal_per_mol_A2: 5.0
+  restrained_npt_ps: 20
+
   # Stage 5 (same LAMMPS session, rules/step2_equilibrate.smk): production
   # NVT + z-resolved density profiles chis_x is read off. Sized from a real
   # throughput benchmark on flow2-ai (profiles/flow2-ai/, job 102982.jobm,
