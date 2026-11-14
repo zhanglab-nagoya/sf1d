@@ -272,7 +272,7 @@ rule lmp_slab_minimize:
         omp_threads=lambda wc, resources: resources.get("ompthreads", 1),
     shell:
         'cd "$(dirname {input.lmp})" && '
-        'LMP_BIN="$(command -v lmp_mpi || command -v lmp)" && '
+        'LMP_BIN="$(command -v lmp_mpi || command -v lmp || command -v lmp_rccs)" && '
         '"$LMP_BIN" -sf omp -pk omp {params.omp_threads} -in "$(basename {input.lmp})"'
 
 
@@ -312,7 +312,7 @@ rule lmp_nvt:
         omp_threads=lambda wc, resources: resources.get("ompthreads", 1),
     shell:
         'cd "$(dirname {input.lmp})" && '
-        'LMP_BIN="$(command -v lmp_mpi || command -v lmp)" && '
+        'LMP_BIN="$(command -v lmp_mpi || command -v lmp || command -v lmp_rccs)" && '
         '"$LMP_BIN" -sf omp -pk omp {params.omp_threads} -in "$(basename {input.lmp})"'
 
 
@@ -386,7 +386,7 @@ rule lmp_gap_minimize:
         omp_threads=lambda wc, resources: resources.get("ompthreads", 1),
     shell:
         'cd "$(dirname {input.lmp})" && '
-        'LMP_BIN="$(command -v lmp_mpi || command -v lmp)" && '
+        'LMP_BIN="$(command -v lmp_mpi || command -v lmp || command -v lmp_rccs)" && '
         '"$LMP_BIN" -sf omp -pk omp {params.omp_threads} -in "$(basename {input.lmp})"'
 
 
@@ -439,7 +439,7 @@ rule lmp_settle:
         omp_threads=lambda wc, resources: resources.get("ompthreads", 1),
     shell:
         'cd "$(dirname {input.lmp})" && '
-        'LMP_BIN="$(command -v lmp_mpi || command -v lmp)" && '
+        'LMP_BIN="$(command -v lmp_mpi || command -v lmp || command -v lmp_rccs)" && '
         '"$LMP_BIN" -sf omp -pk omp {params.omp_threads} -in "$(basename {input.lmp})"'
 
 
@@ -530,7 +530,7 @@ rule lmp_insert_minimize:
         species="ST|MMA",
     shell:
         'cd "$(dirname {input.lmp})" && '
-        'LMP_BIN="$(command -v lmp_mpi || command -v lmp)" && '
+        'LMP_BIN="$(command -v lmp_mpi || command -v lmp || command -v lmp_rccs)" && '
         '"$LMP_BIN" -sf omp -pk omp {params.omp_threads} -in "$(basename {input.lmp})"'
 
 
@@ -580,7 +580,7 @@ rule lmp_insert_relax:
         species="ST|MMA",
     shell:
         'cd "$(dirname {input.lmp})" && '
-        'LMP_BIN="$(command -v lmp_mpi || command -v lmp)" && '
+        'LMP_BIN="$(command -v lmp_mpi || command -v lmp || command -v lmp_rccs)" && '
         '"$LMP_BIN" -sf omp -pk omp {params.omp_threads} -in "$(basename {input.lmp})"'
 
 
@@ -633,5 +633,5 @@ rule lmp_production:
         species="ST|MMA",
     shell:
         'cd "$(dirname {input.lmp})" && '
-        'LMP_BIN="$(command -v lmp_mpi || command -v lmp)" && '
+        'LMP_BIN="$(command -v lmp_mpi || command -v lmp || command -v lmp_rccs)" && '
         '"$LMP_BIN" -sf omp -pk omp {params.omp_threads} -in "$(basename {input.lmp})"'

@@ -1,0 +1,149 @@
+# Snakemake workflow-profile for running pipeline/ on RCCS (ccfep.ims.ac.jp,
+# Institute for Molecular Science; PBS Pro via gxy's own jsub/jdel/jobinfo/
+# joblog wrappers -- no plain qsub, unlike ../flow2-ai). Added 2026-11-14
+# when flow2-ai's point budget ran out mid-redesign; RCCS already hosts a
+# proven, working jsub-based profile for the sibling repo
+# 2026-02-02-pc-on-sio2 (workflow/profiles/rccs/), which this one is modeled
+# directly on -- see that repo's PORTING_NOTES.md for the jsub/jobinfo/
+# joblog quirks already discovered there (status format shifts, joblog lag,
+# etc.) if this profile's own status-jobinfo.sh (a straight copy) ever needs
+# revisiting.
+#
+# Usage (from pipeline/, on an RCCS login node):
+#   module load conda/20260225 && conda activate snakemake
+#   nohup snakemake --workflow-profile profiles/rccs \
+#       results/slab/ST/fragment_density.profile \
+#       results/slab/MMA/fragment_density.profile \
+#       --software-deployment-method conda > smk.log 2>&1 &
+#
+# The `snakemake` conda env already exists under gxy's RCCS account (shared
+# across that account's other git/ repos) -- confirmed live 2026-11-14 it
+# has snakemake 9.19.0 + the cluster-generic executor plugin, but NOT numpy/
+# scipy. That's fine for this profile's immediate purpose (the expensive
+# lmp_production stage, pure LAMMPS, no Python numerics) as long as
+# everything upstream of it (results/slab/{solvent,ST,MMA}/ through
+# relaxed.data) is already synced in from elsewhere (rsync, not git -- see
+# repo-root .gitignore's `pipeline/results/`) rather than rebuilt here. If a
+# *_fragment.py / close_liquid_gap.py-style localrule script (needs scipy)
+# or a polyply-conda rule ever needs to run FOR REAL on this account, add
+# scipy to that shared env first (`conda install -n snakemake scipy` --
+# low-risk/additive, but it's a shared env across other repos' projects, so
+# flag it before doing so) rather than assuming it's already there.
+
+executor: cluster-generic
+
+# jsub does not accept -l resource arguments on its CLI; all PBS resource
+# directives are embedded into the per-job script by submit.py itself.
+cluster-generic-submit-cmd: python profiles/rccs/submit.py
+cluster-generic-cancel-cmd: jdel
+cluster-generic-cancel-nargs: 50
+cluster-generic-status-cmd: profiles/rccs/status-jobinfo.sh
+
+jobscript: profiles/rccs/pbs-jobscript.sh
+
+# See ../flow2-ai/config.yaml's identical comment: this pipeline's rules
+# don't declare envmodules: blocks (module loading happens unconditionally
+# in pbs-jobscript.sh instead), so use-envmodules would do nothing here.
+use-envmodules: False
+
+rerun-triggers: [mtime]
+restart-times: 0
+max-jobs-per-second: 10
+max-status-checks-per-second: 1
+local-cores: 2
+latency-wait: 60
+jobs: 50
+keep-going: True
+rerun-incomplete: True
+printshellcmds: True
+scheduler: greedy
+
+# Every lmp_*/bulk_* rule here runs ONE process -- `lmp -sf omp -pk omp N`
+# or plain gmx, never MPI-decomposed (see submit.py's docstring) -- so
+# `ncpus` is the only thing that varies per rule; `ompthreads` defaults to
+# it and is what gets passed to `-pk omp {threads}` in the rule's own shell
+# block via {resources.ompthreads}.
+default-resources:
+  - nodes=1
+  - ncpus=8
+  - ompthreads=8
+  - time="01:00:00"
+
+set-resources:
+  # Step 0/1 bulk liquid/melt boxes (config.yaml's bulk.box_nm) -- same
+  # class ../flow2-ai sizes at 48 threads/{30 min, 2h, 4h}; RCCS vnodes are
+  # 64 cores (AMD EPYC 7763), so use the same thread count flow2-ai already
+  # benchmarked (48) rather than guessing a new number, and keep flow2-ai's
+  # walltimes (not yet independently re-benchmarked on RCCS).
+  bulk_density:
+    nodes: 1
+    ncpus: 4
+    ompthreads: 4
+    time: "00:10:00"
+  bulk_em:
+    nodes: 1
+    ncpus: 48
+    ompthreads: 48
+    time: "00:30:00"
+  bulk_nvt:
+    nodes: 1
+    ncpus: 48
+    ompthreads: 48
+    time: "02:00:00"
+  bulk_npt:
+    nodes: 1
+    ncpus: 48
+    ompthreads: 48
+    time: "04:00:00"
+
+  # Step 2 chis stages (rules/step2_equilibrate.smk): the merged
+  # substrate+solvent slab (~23.5k atoms) -- same system flow2-ai benchmarked
+  # at 6.3 ms/step with 48 OpenMP threads (job 102982.jobm, 2026-11-06).
+  # RCCS's AMD EPYC 7763 vnode has 64 cores; used here, unbenchmarked on
+  # this specific cluster -- walltimes below pad flow2-ai's own observed/
+  # estimated figures generously rather than assuming a speed-up.
+  lmp_slab_minimize:
+    nodes: 1
+    ncpus: 64
+    ompthreads: 64
+    time: "01:00:00"
+  lmp_nvt:
+    nodes: 1
+    ncpus: 64
+    ompthreads: 64
+    time: "01:00:00"   # config.yaml's merge_nvt_ps thermalize stage
+  lmp_gap_minimize:
+    nodes: 1
+    ncpus: 64
+    ompthreads: 64
+    time: "00:30:00"
+  lmp_settle:
+    nodes: 1
+    ncpus: 64
+    ompthreads: 64
+    time: "00:30:00"   # config.yaml slab.settle_ps = 20 ps, plain NVT, no barostat
+  lmp_insert_minimize:
+    nodes: 1
+    ncpus: 64
+    ompthreads: 64
+    time: "01:00:00"
+  lmp_insert_relax:
+    nodes: 1
+    ncpus: 64
+    ompthreads: 64
+    time: "01:00:00"   # config.yaml slab.insert_relax_ps = 10 ps
+  # The real target: config.yaml slab.production_ns = 10 ns/species.
+  # Benchmarked live 2026-11-14 via a short (0.05 ns) smoke-test job
+  # submitted through this exact profile (job 1996454.ccpbs1, node
+  # ccc603): 3.611 ns/day at 64 OpenMP threads (6.646 h/ns) -- slower per
+  # thread than flow2-ai's 48-thread benchmark (6.8 ns/day there), likely
+  # because kspace/PPPM (49.6% of this run's time) doesn't scale as well
+  # to 64 threads as the real-space pair term does; not worth chasing a
+  # better thread count right now. 10 ns -> ~66.5 h -> padded to 96 h for
+  # scheduling safety margin (the 66.5 h estimate itself has no safety
+  # margin baked in).
+  lmp_production:
+    nodes: 1
+    ncpus: 64
+    ompthreads: 64
+    time: "96:00:00"

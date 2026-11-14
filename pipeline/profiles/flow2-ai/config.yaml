@@ -115,21 +115,26 @@ set-resources:
     nnumas: 1
     ompthreads: 48
     time: "00:30:00"   # config.yaml slab.settle_ps = 20 ps, plain NVT, no barostat
+  lmp_nvt:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "01:00:00"   # config.yaml slab.merge_nvt_ps thermalize stage
+  lmp_gap_minimize:
+    queue: "t1-share"
+    nnumas: 1
+    ompthreads: 48
+    time: "00:30:00"
   lmp_insert_minimize:
     queue: "t1-share"
     nnumas: 1
     ompthreads: 48
     time: "01:00:00"
-  lmp_restrained_npt:
+  lmp_insert_relax:
     queue: "t1-share"
     nnumas: 1
     ompthreads: 48
-    time: "01:00:00"   # config.yaml slab.restrained_npt_ps = 20 ps
-  lmp_final_nvt:
-    queue: "t1-share"
-    nnumas: 1
-    ompthreads: 48
-    time: "01:00:00"   # config.yaml slab.merge_nvt_ps = 20 ps
+    time: "01:00:00"   # config.yaml slab.insert_relax_ps = 10 ps
   lmp_production:
     queue: "t1-share"
     nnumas: 1
