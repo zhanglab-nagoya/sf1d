@@ -1,10 +1,27 @@
 # Energy-minimize the mobile liquid against the frozen substrate. Used by
-# two rules (rules/step2_equilibrate.smk): `lmp_minimize` (the very first
-# stage, straight off merge_slab.py's merged.data) and
-# `lmp_insert_minimize` (right after scripts/insert_fragment.py has moved
-# the fragment and removed the hexadecane it would otherwise overlap --
-# resolves whatever smaller, localized clash remains). Same logic either
-# way, just a different `params.read_data`/`params.write_prefix`.
+# three rules (rules/step2_equilibrate.smk), same logic each time, just a
+# different `params.read_data`/`params.write_prefix`/`params.
+# velocity_create_group`:
+#
+# - `lmp_slab_minimize`: the solvent-only chain's very first dynamics
+#   stage, straight off merge_solvent_with_substrate's merged.data -- no
+#   fragment exists at this point at all (see rules/step2_equilibrate.smk's
+#   module docstring).
+# - `lmp_gap_minimize`: right after scripts/close_liquid_gap.py's
+#   deterministic, one-shot vacuum-gap closure -- that operation translates
+#   each molecule as a rigid body, zero internal distortion, but two
+#   independently-shifted long/floppy hexadecane chains can still land with
+#   overlapping conformations close to each other; confirmed live
+#   2026-11-12, down to 0.23 A between different molecules in one real
+#   case.
+# - `lmp_insert_minimize`: species-specific, right after
+#   scripts/insert_fragment.py combines the fragment with the
+#   already-equilibrated solvent+substrate system -- this is the one call
+#   site that actually has a real fragment-insertion clash to relax (the
+#   deleted hexadecane molecules leave a close-to-exact-sized hole, but
+#   not an exact one). `velocity_create_group="fragment"` here, not the
+#   default `mobile` -- hexadecane's own already-equilibrated velocities
+#   must not be touched.
 #
 # The substrate is frozen via `fix setforce 0 0 0` (moves every atom
 # regardless of any time-integration group) -- never re-relaxed or
@@ -21,13 +38,63 @@ thermo_style custom step pe ebond eangle edihed evdwl ecoul elong
 
 min_style cg
 fix freeze_substrate substrate setforce 0.0 0.0 0.0
+
+# Soft-core pre-relax pass: confirmed live 2026-11-13 this is NOT
+# optional for `lmp_gap_minimize` -- two independently-shifted molecules
+# can land as close as 0.23 A apart (see the module docstring above), and
+# the real lj/cut/coul/long potential's 1/r^12 repulsion diverges hard
+# enough at that range that the main `minimize` below's CG line search
+# resolves the clash by permanently stretching a NEARBY BOND instead of
+# cleanly separating the clashing pair -- traced live on one real case:
+# bond 13516-13550 (nominal r0=1.09 A) got stretched to ~2.8 A within the
+# first ~50 of 1000 CG iterations and never recovered for the rest of the
+# run, silently corrupting nvt_shrunk_minimized.data with a ~1000+
+# kcal/mol latent strain that only surfaced many `lmp_npt_z` barostat
+# cycles later as a LAMMPS "Angle atoms ... missing" crash. A short pass
+# against a bounded, purely-repulsive `pair_style soft` first (no
+# kspace -- electrostatics don't matter for resolving a steric overlap)
+# removes the worst overlaps using a potential that can't diverge, so the
+# bonded network is never asked to absorb an unbounded force; confirmed
+# live this reaches a LOWER final energy too (-1543150 vs -1536376
+# kcal/mol on the same real case), i.e. this is a strictly better
+# minimum, not just a workaround. Applied before every call site, not
+# just lmp_gap_minimize: `lmp_insert_minimize` has its own real clash
+# (see the module docstring above) and `lmp_slab_minimize`'s packmol
+# output is not guaranteed clash-free either, so there is no call site
+# where skipping this is clearly safe, and running it is cheap (a few
+# hundred extra evaluations of a bounded potential).
+pair_style soft {{ params.soft_cutoff }}
+pair_coeff * * {{ params.soft_a }}
+kspace_style none
+minimize {{ params.soft_etol }} {{ params.soft_ftol }} {{ params.soft_maxiter }} {{ params.soft_maxeval }}
+
+# Switch back to the real potential -- pair_coeff/kspace_style must be
+# re-declared, changing pair_style invalidates both.
+pair_style lj/cut/coul/long {{ params.cutoff }}
+kspace_style pppm {{ params.kspace_accuracy }}
+include merged_coeffs.lmp
+pair_modify mix geometric
+
 minimize {{ params.etol }} {{ params.ftol }} {{ params.maxiter }} {{ params.maxeval }}
 unfix freeze_substrate
 
 {% if params.velocity_create %}
-# Only the very first minimize (lmp_minimize) assigns initial velocities
-# -- every later stage continues whatever read_data brought in.
-velocity mobile create {{ params.temperature_K }} {{ params.seed }} mom yes rot yes dist gaussian
+# Only the very first minimize of a given chain assigns initial
+# velocities -- every later stage continues whatever read_data brought
+# in. Defaults to `mobile` (lmp_slab_minimize's first-ever minimize);
+# lmp_insert_minimize passes velocity_create_group="fragment" instead, so
+# hexadecane's own already-equilibrated velocities (carried through from
+# the solvent phase) are never touched by this.
+{# `loop local` (not the default `loop all`, which requires atom IDs
+   contiguous from 1..natoms across the WHOLE system) -- lmp_insert_minimize's
+   inserted.data has gaps in that range from insert_fragment.py's clash-deleted
+   hexadecane molecules (never renumbered -- ids/molids are deliberately left
+   alone so hexadecane's own identity is unchanged across the solvent and
+   per-species files), which `loop all` rejects outright ("Atom IDs must be
+   consecutive", confirmed live 2026-11-14). `loop local`'s lack of
+   proc-count-independent reproducibility doesn't matter here (this project
+   doesn't run multi-rank MPI). #}
+velocity {{ params.velocity_create_group | default("mobile") }} create {{ params.temperature_K }} {{ params.seed }} mom yes rot yes dist gaussian loop local
 {% endif %}
 
 write_data {{ params.write_prefix }}.data

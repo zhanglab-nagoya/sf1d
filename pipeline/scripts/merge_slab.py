@@ -7,7 +7,7 @@ Design choices, both deliberate:
 
 1. Fully 3D-periodic sandwich, not a vacuum-padded free liquid surface.
    The organic box is already laterally commensurate with the substrate's
-   own relaxed footprint (step2_dilute.smk's dilute_pack reads it
+   own relaxed footprint (step2_dilute.smk's solvent_pack reads it
    straight from substrate_minimized.data), so x,y need no further work
    here. In z, rather than adding a large vacuum region above the liquid
    (which LAMMPS's kspace_modify slab correction would need, typically

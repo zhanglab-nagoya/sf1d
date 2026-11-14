@@ -51,7 +51,7 @@ and hexadecane itself as the reference for the correction term):
    write_restart/read_restart round trip reliably between separate `lmp`
    invocations (confirmed live 2026-11-06). Rewritten 2026-11-08 into
    separate per-stage rules (rules/step2_equilibrate.smk,
-   lmp/minimize.lmp.template + lmp/npt_z.lmp.template + others) once
+   lmp/minimize.lmp.template + lmp/nvt.lmp.template + others) once
    that was fixed at the source instead -- see
    rules/step2_equilibrate.smk's module docstring. Verified for both
    species (original monolithic version): minimization converges cleanly

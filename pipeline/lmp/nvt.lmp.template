@@ -1,0 +1,56 @@
+# Plain, fixed-volume NVT -- `has_fragment` selects between three call
+# sites, all box-fixed, none ever a barostat (see config.yaml's
+# slab.settle_ps comment for why this pipeline has no barostat stage of
+# any kind):
+#
+# - Solvent-only thermalize (rules/step2_equilibrate.smk's lmp_nvt,
+#   has_fragment=False, read_data="minimized.data"): right after the
+#   first minimize, no fragment exists yet at all -- plain NVT on
+#   `mobile` (= all of hexadecane), same pattern production.lmp.template
+#   already uses. Runs BEFORE close_liquid_gap's deterministic resize
+#   (thermalizing before resizing keeps that resize's math working from
+#   an equilibrated, not freshly-minimized/cold, starting configuration).
+# - Solvent-only settle (lmp_settle, has_fragment=False,
+#   read_data="nvt_shrunk_minimized.data"): same plain-NVT branch, same
+#   params.has_fragment=False, just a later call site -- after
+#   close_liquid_gap's resize and lmp_gap_minimize's local-overlap
+#   relax, this just dissipates whatever compression heating remains at
+#   the now-already-correct fixed volume. No deform, no barostat, no
+#   further volume change at all.
+# - Post-insertion phase (lmp_insert_relax, has_fragment=True): the
+#   fragment (scripts/insert_fragment.py) is held near its current
+#   position with a per-atom spring back to wherever it already is at the
+#   start of THIS run (`spring/self`, the LAMMPS equivalent of a GROMACS
+#   position restraint -- its reference is each atom's position when the
+#   fix is defined, so no explicit target needs passing in here) while
+#   the local hexadecane clash-deletion disturbance relaxes around it.
+#   This restraint is only released in production.lmp.template.
+{% include "_common_setup.lmp.template" %}
+
+{% if params.has_fragment %}
+compute fragtemp fragment temp
+thermo 500
+thermo_style custom step c_fragtemp c_mobtemp pe ebond eangle edihed evdwl ecoul elong
+
+fix frag_nvt fragment nvt temp {{ params.temperature_K }} {{ params.temperature_K }} 100.0
+fix restrain_frag fragment spring/self {{ params.restraint_k }}
+fix hex_nvt hexadecane nvt temp {{ params.temperature_K }} {{ params.temperature_K }} 100.0
+
+run {{ params.nsteps }}
+
+unfix hex_nvt
+unfix restrain_frag
+unfix frag_nvt
+{% else %}
+thermo 500
+thermo_style custom step c_mobtemp pe ebond eangle edihed evdwl ecoul elong
+
+fix 1 mobile nvt temp {{ params.temperature_K }} {{ params.temperature_K }} 100.0
+
+run {{ params.nsteps }}
+
+unfix 1
+{% endif %}
+
+write_data {{ params.write_prefix }}.data
+write_restart {{ params.write_prefix }}.restart

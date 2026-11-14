@@ -160,6 +160,35 @@ slab:
     ftol: 1.0e-8
     maxiter: 1000
     maxeval: 10000
+  # Soft-core pre-relax pass every `minimize.lmp.template` call site now
+  # runs before the real lj/cut/coul/long minimize -- confirmed live
+  # 2026-11-13 this is not optional: a real lj/cut/coul/long minimize
+  # starting from a severe overlap (close_liquid_gap.py's rigid-body
+  # translation can land two molecules as close as 0.23 A apart, see
+  # lmp_gap_minimize's own docstring) resolves the clash by permanently
+  # stretching a NEARBY BOND instead of cleanly separating the clashing
+  # pair -- traced live: bond 13516-13550 (r0=1.09 A) stretched to ~2.8 A
+  # within the first ~50 of 1000 CG iterations and never recovered,
+  # silently corrupting nvt_shrunk_minimized.data until it surfaced many
+  # `lmp_npt_z` cycles later as a LAMMPS "Angle atoms ... missing" crash.
+  # `pair_style soft` is purely repulsive and bounded (no 1/r^12
+  # divergence), so it can't blow up a bond this way; no kspace needed
+  # here, electrostatics don't matter for resolving a steric overlap.
+  # soft_a (kcal/mol, the "A" prefactor -- NOT a real energy scale, just
+  # how hard the soft potential pushes overlapping atoms apart) and
+  # soft_cutoff are deliberately generic/uniform across all atom type
+  # pairs (unlike the real force field's own per-type sigma/epsilon) --
+  # this stage only needs to clear gross overlaps, not get the real
+  # physics right. Confirmed live this reaches a LOWER final energy than
+  # skipping it (-1543150 vs -1536376 kcal/mol on the same real case),
+  # i.e. a strictly better minimum, not just a workaround.
+  soft_premin:
+    soft_cutoff: 4.0
+    soft_a: 20.0
+    soft_etol: 1.0e-4
+    soft_ftol: 1.0e-6
+    soft_maxiter: 200
+    soft_maxeval: 2000
   # LAMMPS/InterMol wrote every bond (including GROMACS's LINCS-
   # constrained X-H bonds) as an explicit flexible harmonic bond, not a
   # SHAKE constraint -- confirmed live 2026-11-06 this needs a smaller
@@ -169,73 +198,93 @@ slab:
   merge_nvt_ps: 20
   merge_nvt_seed: 12345
 
-  # Stage 4b/4d (rules/step2_equilibrate.smk, lmp/npt_z.lmp.template,
-  # lmp/restrained_npt.lmp.template):
-  # z-direction barostat equilibration, added 2026-11-08 after confirming
-  # live that the old fixed-volume NVT left a real ~10 A vacuum gap for
-  # ST and an asymmetric density profile for MMA -- the box's z-length
-  # (set by merge_slab.py from a single raw, unequilibrated snapshot) was
-  # never at this merged system's true equilibrium density. Barostat
-  # style matters a lot here: `fix npt` (Nose-Hoover) never converges at
-  # all for this system -- confirmed live 2026-11-08, it runs away to a
-  # stable-but-wrong ~465 K / ~137,000 atm plateau regardless of target,
-  # because the frozen substrate's own enormous internal ionic virial
-  # swamps the only lever the barostat has, and Nose-Hoover's inertia
-  # turns that into a runaway feedback loop. `fix press/berendsen` (no
-  # inertia, direct per-step volume rescale) does not have this failure
-  # mode and reaches a genuinely stable state with the SAME literal
-  # target. Parameters below (including the literal 1 atm target, which
-  # does work with Berendsen despite the substrate's offset) are reused
-  # unchanged from the sibling ../2026-10-28-generate-aa-pama repo's
-  # in/335_polymer_in_solvent_on_substrate_npt/npt.lmp.template, which
-  # barostats a similarly substrate-adjacent liquid the same way -- not
-  # re-tuned from scratch. x,y are never barostatted here -- only the `z`
-  # keyword is passed -- so the box stays commensurate with the
-  # substrate's lattice throughout, same constraint GROMACS's own
-  # npt_semiiso.mdp respects in step2_dilute.smk.
-  npt_pressure_atm: 1.0
-  npt_pressure_damp_fs: 25000.0
-  # Bulk-modulus estimate `fix press/berendsen` needs to convert a
-  # pressure deviation into a volume-rescale factor -- a plausible order
-  # of magnitude for a simple alkane liquid's own compressibility (not
-  # meant to capture the substrate's own, much stiffer, modulus; the
-  # fix's only lever is the liquid's volume regardless). Same value as
-  # the sibling repo's template above.
-  npt_modulus_atm: 10000.0
-  # Confirmed live 2026-11-08 on ST's real merged.data: with
-  # press/berendsen, the z-length contracted from 109.33 to 100.87 A
-  # within 0.5 ps and then held flat for the rest of a 10 ps test run --
-  # an 8.46 A contraction matching almost exactly the 8.45 A the real
-  # 10 ns flow2-ai production run slowly drifted toward under passive
-  # fixed-volume NVT. 100 ps gives a wide margin over that observed
-  # convergence time, not yet benchmarked against watching the box
-  # length plateau over the species' own full npt_z_ps; pad further if
-  # npt_equilibrated.data's z-length is still visibly drifting at the
-  # end of this stage.
-  npt_z_ps: 100
-  # After stage 4b, scripts/insert_fragment.py moves the fragment to the
-  # middle of the now-equilibrated liquid arc, replacing whatever
-  # position step2_dilute.smk's GROMACS packing happened to leave it at
-  # -- that arbitrary starting position, not a deliberate choice, is
-  # exactly what got swept to the box's periodic seam within the first
-  # 20 ps of the old NVT stage (see rules/step2_equilibrate.smk's module
-  # docstring). A rigid translation drops it straight into whatever
-  # hexadecane already occupied that spot; this is how close a
-  # hexadecane atom can be to any (already-moved) fragment atom before
-  # its whole molecule gets removed rather than relaxed through --
-  # slightly above the largest organic LJ sigma seen in
-  # merged_coeffs.lmp (~3.55 A), so a flagged pair is a genuine clash,
-  # not just a normal near-neighbor distance.
-  fragment_insert_clash_angstrom: 4.0
-  # Restraining the fragment to its new position (`spring/self`, like a
-  # GROMACS position restraint) while the z-barostat (scoped to
-  # `hexadecane` only) continues keeps it from drifting straight back to
-  # the seam while the solvent relaxes around it. Chosen to be "short"
-  # per the GROMACS posres convention (just long enough for local
-  # steric/solvation relaxation, not a full equilibration in its own
-  # right -- the final unrestrained NVT below still runs after this).
+  # Stage 4c (rules/step2_equilibrate.smk, lmp_settle, reuses
+  # lmp/nvt.lmp.template's has_fragment=False plain-NVT branch): replaces
+  # the earlier z-direction barostat equilibration entirely -- removed
+  # 2026-11-13 after extensive live diagnosis (both the original
+  # whole-box-pressure barostat AND a later hand-rolled, liquid-only-
+  # pressure Berendsen rescale) established this isn't a tuning problem,
+  # it's a structural one: a barostat run on a system with a large frozen,
+  # immobile substrate component is fundamentally unreliable. The
+  # whole-box version always included the frozen substrate's own
+  # enormous, essentially volume-independent internal virial (`compute
+  # pressure` hard-requires group "all") and plateaued at a stable-but-
+  # meaningless ~133,700 atm (fix press/berendsen) or ran away entirely
+  # (~465 K/~137,000 atm, fix npt's extended-Lagrangian inertia). The
+  # liquid-only-pressure hand-rolled replacement fixed the wrong-signal
+  # problem but surfaced a second, intrinsic one: confirmed live
+  # 2026-11-13 across a direct empirical test (resumed from a completed
+  # 400-cycle/100 ps run's own restart file, continued 300 more cycles)
+  # that the decay rate barely changes whether or not the per-cycle
+  # rescale clamp is actively binding -- the liquid's own real
+  # compressibility gives this particular feedback loop an effective
+  # relaxation time around ~120 ps REGARDLESS of clamp/modulus tuning, so
+  # reaching the ~17,000-20,000 atm starting error's target would cost
+  # roughly 1 ns of barostat run, not the ~100 ps originally budgeted.
+  #
+  # Researched how neighboring repos solve the identical problem:
+  # ../2026-07-28-fe2o3-cg (same substrate, same solvent, same fully-
+  # frozen-substrate choice) tried and explicitly abandoned a barostat
+  # here too (docs/methods.md: "A barostat-based approach... was
+  # deliberately avoided... because a barostat acting on a system
+  # containing a large frozen, immobile substrate component behaves
+  # pathologically"), replacing it with a DETERMINISTIC box resize to a
+  # target computed directly from the solvent's own known reference bulk
+  # density (no pressure feedback of any kind), followed by a plain,
+  # barostat-free NVT settle to dissipate compression heating at fixed
+  # volume -- validated there to reach the reference density to 0.00%
+  # with zero empty density-profile bins.
+  #
+  # scripts/close_liquid_gap.py already does our side of that first half
+  # (deterministic resize from results/segment_volume.yaml's own
+  # hexadecane_density_kg_per_m3, mass-conservation based -- structurally
+  # the same idea as fe2o3-cg's `fix deform` target, just computed via an
+  # instantaneous rigid-body molecule translation instead of a gradual
+  # box-boundary ramp, because our gap is an INTERIOR defect in a
+  # periodic-sandwich liquid arc, not an edge vacuum pad fix deform's
+  # free-surface geometry assumes). lmp_gap_minimize's soft-core pre-relax
+  # (see soft_premin above) already resolves the local overlap that rigid
+  # translation leaves between independently-shifted molecules. What
+  # remains, matching fe2o3-cg's own "Phase 2" exactly, is just a short
+  # NVT settle at the now-already-correct fixed volume -- no further
+  # volume change, no pressure feedback, nothing left for a barostat to
+  # (unreliably) do.
+  settle_ps: 20
+
+  # Fragment insertion (scripts/insert_fragment.py, rules/
+  # step2_equilibrate.smk's insert_fragment), species-specific, run only
+  # AFTER the solvent-only chain above has fully converged
+  # (results/slab/solvent/npt_equilibrated.data) -- see that file's
+  # module docstring for the full root-cause history of why this replaces
+  # both an earlier post-equilibration insert_fragment.py design (rigid-
+  # translated an always-present fragment through already-equilibrated
+  # hexadecane, left a real, never-filled vacancy at its origin -- live
+  # 2026-11-12) and the center_fragment.py design that replaced it
+  # (restrained the fragment through the whole barostat run, which turned
+  # out to have the same problem one level up).
+  #
+  # Hexadecane atoms within insert_clash_angstrom of the (translated)
+  # fragment have their whole molecule removed (never partial -- would
+  # leave a dangling bond). Same default as the original deleted
+  # insert_fragment.py used.
+  insert_clash_angstrom: 4.0
+  # Short, box-fixed, restrained relaxation of the local clash-deletion
+  # disturbance (lmp_insert_relax, lmp/nvt.lmp.template with
+  # has_fragment=True) -- NOT a full thermalization-from-scratch like
+  # merge_nvt_ps above, just enough for the handful of atoms near the
+  # deletion boundary to relax. Starting guess, not yet confirmed
+  # empirically (see the plan's Verification section) -- watch the
+  # hexadecane density profile right around the fragment's own position
+  # in relaxed.data/production.data for a residual local defect; if one
+  # remains, the fallback is a longer insert_relax_ps, not a barostat
+  # stage of any kind (see slab.settle_ps above for why).
+  insert_relax_ps: 10
+  # Restraining the fragment (`spring/self`, like a GROMACS position
+  # restraint) through lmp_insert_relax keeps it from drifting while the
+  # local disturbance relaxes around it; released only at the start of
+  # production.lmp.template. Deliberately NOT used anywhere in the
+  # solvent-only chain above anymore (no fragment exists there at all).
   fragment_restraint_k_kcal_per_mol_A2: 5.0
-  restrained_npt_ps: 20
 
   # Stage 5 (same LAMMPS session, rules/step2_equilibrate.smk): production
   # NVT + z-resolved density profiles chis_x is read off. Sized from a real

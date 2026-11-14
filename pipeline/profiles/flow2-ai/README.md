@@ -9,7 +9,7 @@ Professional supercomputer, via its generative-AI login nodes
 Step 0/1's bulk GROMACS rules (`bulk_em`, `bulk_nvt`, `bulk_npt`,
 `bulk_density`) go through PBS here — the same scope `rule all` targets
 today (see `../../README.md`). Step 2's stage 4+5 LAMMPS rules
-(`rules/step2_equilibrate.smk` -- `lmp_slab_minimize`, `lmp_npt_z`,
+(`rules/step2_equilibrate.smk` -- `lmp_slab_minimize`, `lmp_settle`,
 `lmp_insert_minimize`, `lmp_restrained_npt`, `lmp_final_nvt`,
 `lmp_production`, rewritten 2026-11-08 from one `lmp_equilibrate_merged`
 rule into this per-stage shape) are each sized in `config.yaml`, mostly

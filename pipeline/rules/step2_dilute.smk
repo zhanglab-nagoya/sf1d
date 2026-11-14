@@ -1,11 +1,34 @@
-"""Step 2 dilute box: one ST-analog/MMA-analog fragment diluted in a normal
-periodic hexadecane box, built and equilibrated entirely in GROMACS -- no
-substrate here at all. The resulting snapshot is converted to LAMMPS and
-merged onto results/substrate/substrate_minimized.data afterward (see
-step2_merge.smk), not built next to the substrate directly: GROMACS has no
-Fe2O3/INTERFACE force field, so there is nothing for it to equilibrate
-against anyway. This mirrors step2_chis.smk's docstring's own stage 1/2
-split (build_dilute_fragment_box, then convert_to_lammps).
+"""Step 2 dilute box -- rewritten 2026-11-13 to decouple the solvent from
+the fragment entirely (see the "Decouple fragment insertion from
+solvent/substrate equilibration" plan for the full root-cause history).
+
+Two independent halves now live in this file:
+
+1. `solvent_pack`/`solvent_top`/`solvent_em`/`solvent_nvt`/`solvent_npt`:
+   a normal periodic hexadecane-ONLY box, built and equilibrated entirely
+   in GROMACS -- no fragment, no substrate here at all (GROMACS has no
+   Fe2O3/INTERFACE force field, so there is nothing for it to equilibrate
+   against anyway; the substrate joins later, step2_merge.smk). This is
+   SPECIES-INDEPENDENT (no `{species}` wildcard, writes under
+   results/slab/solvent/) -- both ST and MMA reuse the exact same
+   equilibrated hexadecane+substrate system, built once. The fragment used
+   to be packed into this same box from the start (dilute_pack) and
+   restrained through the whole barostat run; that let the restrained
+   fragment act as a fixed anchor the barostat's own `change_box ...
+   remap` rescale (anchored at zlo) stretched away from every cycle,
+   opening a real, permanent cavity at the fragment's location over a
+   long equilibration -- confirmed live 2026-11-12/13 across three
+   independently-tuned barostat variants that all converged to the same
+   wrong ~271 A/~1500 atm plateau regardless of starting conditions.
+   Equilibrating the solvent alone first removes that anchor entirely.
+
+2. `build_fragment_itp`/`fragment_single_top`/`fragment_single_mol_raw`/
+   `fragment_single_mol_em`: the single ST-analog/MMA-analog fragment's own
+   clean EM'd geometry, still SPECIES-SPECIFIC and unchanged in method from
+   before -- it no longer feeds a combined packmol box at all. Converted
+   straight to LAMMPS by step2_convert.smk's `convert_fragment_to_lammps`
+   and inserted into the already-equilibrated solvent afterward
+   (scripts/insert_fragment.py, rules/step2_equilibrate.smk).
 
 The fragment is deliberately NOT the ST10/MMA10 10-mer oligomer step0/1
 uses for bulk CED -- see config.yaml's slab.fragment_length comment for
@@ -27,30 +50,35 @@ even for one small fragment (ST barely converged at loop 839/1000 after
 ~87 min; MMA exhausted all 1000 loops without converging) -- the same
 "packing near the true density is the hard case" lesson from bulk_pack's
 own box_nm comment, just at a smaller scale. slab.volume_margin
-(config.yaml) now carries a ~12% margin instead; dilute_npt's z-only
+(config.yaml) now carries a ~12% margin instead; solvent_npt's z-only
 relaxation easily absorbs that small a correction.
 
 The box's lateral (x,y) dimensions are NOT sized independently at all --
-dilute_pack reads them straight from results/substrate/
+solvent_pack reads them straight from results/substrate/
 substrate_minimized.data (step2_substrate.smk), so this organic box ends
 up commensurate with the Fe2O3 substrate's own relaxed footprint *before*
 any MD here runs, rather than merging two differently-sized periodic
-boxes later (step2_convert.smk/step2_chis.smk) and having to stretch one
+boxes later (step2_convert.smk/step2_merge.smk) and having to stretch one
 to fit -- which would strain either the solvent's density or the
 substrate's own crystal lattice for no good reason. Only z is free:
-dilute_npt (mdp/npt_semiiso.mdp, semiisotropic pressure coupling with
+solvent_npt (mdp/npt_semiiso.mdp, semiisotropic pressure coupling with
 compressibility_xy=0) relaxes z only, keeping x,y frozen at whatever
-dilute_pack set them to. mdp/em.mdp and mdp/nvt.mdp are still reused
+solvent_pack set them to. mdp/em.mdp and mdp/nvt.mdp are still reused
 verbatim from step0/1 (no coupling-type concern at constant volume).
 
-STATUS: runs end-to-end for both species with the substrate-commensurate
-box above -- confirmed live 2026-11-06: lateral box frozen exactly at the
-substrate's own relaxed footprint (5.1811 x 5.3844 nm, both species, as
-intended), z relaxes to ~5.42-5.44 nm, density ~743-745 kg/m^3 (ST 743.1,
-MMA 745.1), close to hexadecane's own ~750 kg/m^3 reference as expected.
+STATUS: ran end-to-end (fragment+hexadecane together) for both species
+with the substrate-commensurate box above -- confirmed live 2026-11-06:
+lateral box frozen exactly at the substrate's own relaxed footprint
+(5.1811 x 5.3844 nm, both species, as intended), z relaxes to ~5.42-5.44
+nm, density ~743-745 kg/m^3 (ST 743.1, MMA 745.1), close to hexadecane's
+own ~750 kg/m^3 reference as expected. Not yet re-run since the
+2026-11-13 solvent/fragment split above -- same packmol/GROMACS logic,
+just one fewer molecule type, so this density/z result should reproduce
+closely.
 """
 
 SLAB_RES = "results/slab"
+SOLVENT_RES = f"{SLAB_RES}/solvent"  # species-independent, shared by ST/MMA
 FRAG_LEN = config["slab"]["fragment_length"]
 FRAG_SPECIES = ["ST", "MMA"]
 
@@ -60,8 +88,19 @@ def frag_molname(species):
 
 
 rule build_fragment_itp:
-    """Single capped repeat unit, CH3-{species}-CH3n -- see this file's
-    docstring for why fragment_length=1, not oligomer_length=10."""
+    """Single capped repeat unit, CH3n-{species}-CH3n -- see this file's
+    docstring for why fragment_length=1, not oligomer_length=10.
+
+    CH3n on BOTH ends, not CH3 -- confirmed live 2026-11-12: CH3.ff's plain
+    literature OPLS charges (C -0.3029, H 0.0694 x3) sum to -0.0947, while
+    CH3n.ff's are the same values uniformly shifted by +0.023675/atom to
+    sum to exactly 0 (PAMA_ST_MMA.oplsaa.LigParGen_links.ff bonds CH3 and
+    CH3n identically to either backbone attachment carbon, so they're
+    structurally interchangeable -- CH3 itself is never used again, kept
+    only as the other half of that now-unused correction pair). This is
+    why every oligomer/fragment built here carried a net charge of
+    exactly -0.0947 e and every LAMMPS run warned "System is not charge
+    neutral" regardless of species."""
     input:
         ff=[
             f"{FF_DIR}/monomers/PAMA_{{species}}.oplsaa.LigParGen.ff",
@@ -77,7 +116,7 @@ rule build_fragment_itp:
         "../envs/polyply.yaml"
     localrule: True
     params:
-        seq=lambda wc: f"CH3:1 {wc.species}:{FRAG_LEN} CH3n:1",
+        seq=lambda wc: f"CH3n:1 {wc.species}:{FRAG_LEN} CH3n:1",
         name=lambda wc: f"{wc.species}{FRAG_LEN}",
     shell:
         "polyply gen_params -name {params.name} -f {input.ff} "
@@ -154,12 +193,13 @@ rule fragment_single_mol_em:
         shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 
 
-rule dilute_pack:
-    """Pack 1 EM'd fragment + n_hex copies of hexadecane's own EM'd single
-    molecule (results/bulk/HEX/single_em.gro -- shared with step0/1, not
-    rebuilt here) directly near the real liquid density via packmol. See
-    bulk_pack's docstring for the PDB round-trip packmol needs (.gro <->
-    .pdb, box vectors reattached after).
+rule solvent_pack:
+    """Pack n_hex copies of hexadecane's own EM'd single molecule
+    (results/bulk/HEX/single_em.gro -- shared with step0/1, not rebuilt
+    here) directly near the real liquid density via packmol. No fragment
+    here at all -- SPECIES-INDEPENDENT, see this file's module docstring.
+    See bulk_pack's docstring for the PDB round-trip packmol needs (.gro
+    <-> .pdb, box vectors reattached after).
 
     Lateral (x,y) box dims come straight from the substrate's own relaxed
     footprint (see this file's module docstring for why); only z is
@@ -168,19 +208,18 @@ rule dilute_pack:
     packmol -- same role bulk_pack's box_nm oversize played, just
     confined to one dimension instead of three since x,y are fixed."""
     input:
-        frag_gro=f"{SLAB_RES}/{{species}}/single_em.gro",
         hex_gro="results/bulk/HEX/single_em.gro",
         substrate_data=config["slab"]["substrate_data"],
         segment_volume="results/segment_volume.yaml",
     output:
-        gro=f"{SLAB_RES}/{{species}}/box0.gro",
+        gro=f"{SOLVENT_RES}/box0.gro",
     params:
         n_hex=config["slab"]["n_hex"],
         volume_margin=config["slab"]["volume_margin"],
-        frag_pdb=f"{SLAB_RES}/{{species}}/single_em.pdb",
-        hex_pdb=f"{SLAB_RES}/{{species}}/hex_single_em.pdb",
-        packed_pdb=f"{SLAB_RES}/{{species}}/packed.pdb",
-        inp_file=f"{SLAB_RES}/{{species}}/packmol.inp",
+        hex_pdb=f"{SOLVENT_RES}/hex_single_em.pdb",
+        packed_pdb=f"{SOLVENT_RES}/packed.pdb",
+        inp_file=f"{SOLVENT_RES}/packmol.inp",
+    localrule: True
     run:
         import yaml
 
@@ -203,13 +242,9 @@ rule dilute_pack:
         m_hex = seg["hexadecane_molar_mass_g_per_mol"]
         rho_hex = seg["hexadecane_density_kg_per_m3"]
 
-        # n_hex HEX molecules' own volume at their real measured density
-        # (the 1 fragment's volume is a negligible correction here --
-        # this is only sizing the packing box, not the production result).
         volume_nm3 = (params.n_hex * m_hex / (N_A * 1000.0) / rho_hex) * 1e27
         z_nm = volume_nm3 / (x_nm * y_nm) * params.volume_margin
 
-        shell("gmx_mpi editconf -f {input.frag_gro} -o {params.frag_pdb}")
         shell("gmx_mpi editconf -f {input.hex_gro} -o {params.hex_pdb}")
 
         box_ang = [x_nm * 10, y_nm * 10, z_nm * 10]
@@ -218,12 +253,6 @@ rule dilute_pack:
             fh.write("filetype pdb\n")
             fh.write("nloop 1000\n")
             fh.write(f"output {params.packed_pdb}\n\n")
-            fh.write(f"structure {params.frag_pdb}\n")
-            fh.write("  number 1\n")
-            fh.write(
-                f"  inside box 0. 0. 0. {box_ang[0]} {box_ang[1]} {box_ang[2]}\n"
-            )
-            fh.write("end structure\n\n")
             fh.write(f"structure {params.hex_pdb}\n")
             fh.write(f"  number {params.n_hex}\n")
             fh.write(
@@ -238,23 +267,20 @@ rule dilute_pack:
         )
 
 
-rule dilute_top:
-    """Written after dilute_pack, deriving both molecule counts from the
+rule solvent_top:
+    """Written after solvent_pack, deriving the molecule count from the
     packed box's real atom count -- same non-determinism safety net as
-    bulk_top (see its docstring), applied to both species present here."""
+    bulk_top (see its docstring)."""
     input:
-        frag_itp=lambda wc: f"{SLAB_RES}/{wc.species}/{frag_molname(wc.species)}.itp",
         hex_itp="results/bulk/HEX/HEX.itp",
         ff_itp=f"{FF_DIR}/oplsaa.ff/forcefield.itp",
         nb=f"{FF_DIR}/custom-ffnonbonded.itp",
-        box=f"{SLAB_RES}/{{species}}/box0.gro",
-        frag_single=f"{SLAB_RES}/{{species}}/single_em.gro",
+        box=f"{SOLVENT_RES}/box0.gro",
         hex_single="results/bulk/HEX/single_em.gro",
     output:
-        top=f"{SLAB_RES}/{{species}}/topol.top",
+        top=f"{SOLVENT_RES}/topol.top",
     localrule: True
     params:
-        frag_mol=lambda wc: frag_molname(wc.species),
         n_hex_requested=config["slab"]["n_hex"],
     run:
         import os
@@ -265,13 +291,12 @@ rule dilute_top:
                 fh.readline()
                 return int(fh.readline())
 
-        n_frag_atoms = count_atoms(input.frag_single)
         n_hex_atoms = count_atoms(input.hex_single)
         n_box_atoms = count_atoms(input.box)
-        n_hex = (n_box_atoms - n_frag_atoms) // n_hex_atoms
+        n_hex = n_box_atoms // n_hex_atoms
         if n_hex != params.n_hex_requested:
             print(
-                f"dilute_top: packmol placed {n_hex} of "
+                f"solvent_top: packmol placed {n_hex} of "
                 f"{params.n_hex_requested} requested HEX molecules -- "
                 "using the actual count.",
                 file=sys.stderr,
@@ -279,31 +304,28 @@ rule dilute_top:
 
         ff_itp_rel = os.path.relpath(input.ff_itp, os.path.dirname(output.top))
         nb_rel = os.path.relpath(input.nb, os.path.dirname(output.top))
-        frag_itp_rel = os.path.relpath(input.frag_itp, os.path.dirname(output.top))
         hex_itp_rel = os.path.relpath(input.hex_itp, os.path.dirname(output.top))
         with open(output.top, "w") as fh:
             fh.write(f'#include "{ff_itp_rel}"\n')
             fh.write(f'#include "{nb_rel}"\n')
-            fh.write(f'#include "{frag_itp_rel}"\n')
             fh.write(f'#include "{hex_itp_rel}"\n\n')
             fh.write("[ system ]\n")
-            fh.write(f"{params.frag_mol} dilute in HEX\n\n")
+            fh.write("pure HEX solvent\n\n")
             fh.write("[ molecules ]\n")
-            fh.write(f"{params.frag_mol}    1\n")
             fh.write(f"HEX    {n_hex}\n")
 
 
-rule dilute_em:
+rule solvent_em:
     input:
-        gro=f"{SLAB_RES}/{{species}}/box0.gro",
-        top=f"{SLAB_RES}/{{species}}/topol.top",
+        gro=f"{SOLVENT_RES}/box0.gro",
+        top=f"{SOLVENT_RES}/topol.top",
         mdp="mdp/em.mdp",
     output:
-        gro=f"{SLAB_RES}/{{species}}/em.gro",
-        tpr=f"{SLAB_RES}/{{species}}/em.tpr",
+        gro=f"{SOLVENT_RES}/em.gro",
+        tpr=f"{SOLVENT_RES}/em.tpr",
     params:
-        prefix=f"{SLAB_RES}/{{species}}/em",
-        mdp_rendered=f"{SLAB_RES}/{{species}}/em.rendered.mdp",
+        prefix=f"{SOLVENT_RES}/em",
+        mdp_rendered=f"{SOLVENT_RES}/em.rendered.mdp",
     threads: 8
     run:
         render_mdp(input.mdp, params.mdp_rendered, em_nsteps=config["slab"]["em_nsteps"])
@@ -314,17 +336,17 @@ rule dilute_em:
         shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 
 
-rule dilute_nvt:
+rule solvent_nvt:
     input:
-        gro=f"{SLAB_RES}/{{species}}/em.gro",
-        top=f"{SLAB_RES}/{{species}}/topol.top",
+        gro=f"{SOLVENT_RES}/em.gro",
+        top=f"{SOLVENT_RES}/topol.top",
         mdp="mdp/nvt.mdp",
     output:
-        gro=f"{SLAB_RES}/{{species}}/nvt.gro",
-        tpr=f"{SLAB_RES}/{{species}}/nvt.tpr",
+        gro=f"{SOLVENT_RES}/nvt.gro",
+        tpr=f"{SOLVENT_RES}/nvt.tpr",
     params:
-        prefix=f"{SLAB_RES}/{{species}}/nvt",
-        mdp_rendered=f"{SLAB_RES}/{{species}}/nvt.rendered.mdp",
+        prefix=f"{SOLVENT_RES}/nvt",
+        mdp_rendered=f"{SOLVENT_RES}/nvt.rendered.mdp",
         nsteps=lambda wc: int(config["slab"]["nvt_ps"] / 0.002),
     threads: 8
     run:
@@ -341,26 +363,26 @@ rule dilute_nvt:
         shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 
 
-rule dilute_npt:
+rule solvent_npt:
     """Packed directly near the real density in z (unlike bulk_pack), so
     no squeeze phase needed -- this is the "small perturbation" regime a
     normal ref_p=1 bar barostat handles fine (see config.yaml's bulk.
     squeeze_pressure_bar comment for why that was NOT true for bulk_pack's
     deliberately oversized boxes). Uses mdp/npt_semiiso.mdp, not the
     shared isotropic mdp/npt.mdp step0/1 use: x,y must stay exactly at
-    whatever dilute_pack set them to (the substrate's own footprint, see
-    dilute_pack's docstring), so only z is allowed to relax."""
+    whatever solvent_pack set them to (the substrate's own footprint, see
+    solvent_pack's docstring), so only z is allowed to relax."""
     input:
-        gro=f"{SLAB_RES}/{{species}}/nvt.gro",
-        top=f"{SLAB_RES}/{{species}}/topol.top",
+        gro=f"{SOLVENT_RES}/nvt.gro",
+        top=f"{SOLVENT_RES}/topol.top",
         mdp="mdp/npt_semiiso.mdp",
     output:
-        gro=f"{SLAB_RES}/{{species}}/npt.gro",
-        edr=f"{SLAB_RES}/{{species}}/npt.edr",
-        tpr=f"{SLAB_RES}/{{species}}/npt.tpr",
+        gro=f"{SOLVENT_RES}/npt.gro",
+        edr=f"{SOLVENT_RES}/npt.edr",
+        tpr=f"{SOLVENT_RES}/npt.tpr",
     params:
-        prefix=f"{SLAB_RES}/{{species}}/npt",
-        mdp_rendered=f"{SLAB_RES}/{{species}}/npt.rendered.mdp",
+        prefix=f"{SOLVENT_RES}/npt",
+        mdp_rendered=f"{SOLVENT_RES}/npt.rendered.mdp",
         nsteps=lambda wc: int(config["slab"]["npt_ps"] / 0.002),
     threads: 8
     run:

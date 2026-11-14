@@ -43,28 +43,44 @@ group mobile type 1:{{ params.n_org_types }}
 group substrate type {{ params.n_org_types + 1 }}:{{ params.n_org_types + 2 }}
 velocity substrate set 0.0 0.0 0.0
 
+{% if params.frag_molid_lo is defined %}
 # Stage 5's density profiles need the single adsorbing fragment split out
-# from the many hexadecane molecules within `mobile`. Confirmed live
-# 2026-11-06 for both ST and MMA (unwrapped.gro / converted.lmp): a
-# fragment_length=1 "CH3-{species}-CH3" capped repeat unit is written by
-# GROMACS/polyply as THREE separate molecule-IDs (cap, core, cap --
-# residues "1CH3"/"2{species}"/"3CH3" in the .gro), always 1-3 since the
-# fragment is always the very first molecule in topol.top's [molecules]
-# section (see rules/step2_dilute.smk). Hexadecane molecule-IDs start
-# right after at 4 and run up to merge_slab.py's max_org_molid (passed in
-# below; the substrate itself gets the one molid right after that, not
-# needed here since it's already selected by atom type above).
-group fragment molecule 1:3
-group hexadecane molecule 4:{{ params.max_org_molid }}
+# from the many hexadecane molecules within `mobile`. Only defined once a
+# fragment has actually been inserted (scripts/insert_fragment.py,
+# rules/step2_equilibrate.smk) -- the solvent-only equilibration stages
+# have no fragment at all, so `mobile` alone stands in for "hexadecane"
+# there (see the "Decouple fragment insertion from solvent/substrate
+# equilibration" plan). insert_fragment.py places hexadecane's own
+# molecule-IDs unchanged at [1..max_org_molid] and appends the fragment's
+# 3 residues (cap/core/cap -- a fragment_length=1 "CH3n-{species}-CH3n"
+# capped repeat unit is written by GROMACS/polyply as THREE separate
+# molecule-IDs, see rules/step2_dilute.smk's build_fragment_itp
+# docstring) numerically after the substrate's own single molid, at
+# [frag_molid_lo..frag_molid_hi] -- both ranges passed in as params below,
+# not hardcoded, since their absolute values depend on how many
+# hexadecane molecules insert_fragment.py's clash deletion happened to
+# remove.
+group fragment molecule {{ params.frag_molid_lo }}:{{ params.frag_molid_hi }}
+group hexadecane molecule 1:{{ params.max_org_molid }}
+{% endif %}
 
 neighbor 2.0 bin
 neigh_modify every 1 delay 0 check yes
 
 compute mobtemp mobile temp
-# `compute pressure` requires group "all" (the virial is inherently a
-# global per-box quantity, confirmed live 2026-11-08 -- "Compute pressure
-# must use group all") -- only the temperature-compute argument used for
-# its kinetic term is group-scoped.
-compute mobpress all pressure mobtemp
+# No whole-box `compute pressure` here, and no barostat anywhere in this
+# pipeline at all (see config.yaml's slab.settle_ps comment for the full
+# history): it hard-requires group "all" (confirmed live 2026-11-08 --
+# "Compute pressure must use group all"), and for this frozen-substrate
+# system that whole-box pressure is dominated by the substrate's own
+# internal virial, not the liquid's -- confirmed live 2026-11-11 to be
+# exactly why an earlier NPT design settled at a stable but meaningless
+# ~133,700 atm, and confirmed again 2026-11-13 that even a hand-rolled,
+# liquid-only-pressure barostat replacement for that doesn't fix the
+# underlying problem (its convergence rate turned out to be set by the
+# liquid's own real compressibility regardless of tuning -- a structural
+# dead end, not a signal-correctness bug). Box sizing is handled entirely
+# by scripts/close_liquid_gap.py's deterministic, density-based resize
+# instead; every stage here is box-fixed.
 
 timestep {{ params.timestep_fs }}

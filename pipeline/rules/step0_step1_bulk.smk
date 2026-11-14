@@ -56,7 +56,18 @@ rule build_itp_oligomer:
     params:
         # polyply's -seq takes "resname:n_blocks" tokens (current PyPI
         # release, 1.8.0) -- not a flat space-repeated list of names.
-        seq=lambda wc: f"CH3:1 {wc.species}:{N_OLIGO} CH3n:1",
+        # CH3n on BOTH ends, not CH3 -- confirmed live 2026-11-12: CH3.ff's
+        # plain literature OPLS charges (C -0.3029, H 0.0694 x3) sum to
+        # -0.0947, while CH3n.ff's are the same values uniformly shifted by
+        # +0.023675/atom to sum to exactly 0 (PAMA_ST_MMA.oplsaa.LigParGen_
+        # links.ff bonds CH3 and CH3n identically to either backbone
+        # attachment carbon, so they're structurally interchangeable -- CH3
+        # itself is never used again, kept only as the other half of that
+        # now-unused correction pair). This is why every oligomer/fragment
+        # built here carried a net charge of exactly -0.0947 e and every
+        # LAMMPS run warned "System is not charge neutral" regardless of
+        # species.
+        seq=lambda wc: f"CH3n:1 {wc.species}:{N_OLIGO} CH3n:1",
         name=lambda wc: f"{wc.species}{N_OLIGO}",
     shell:
         "polyply gen_params -name {params.name} -f {input.ff} "

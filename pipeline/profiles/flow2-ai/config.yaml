@@ -99,7 +99,7 @@ set-resources:
   # ~6.3 ms/step rate, config.yaml's slab.production_ns=10 ns -- ~35 h/
   # species real time, padded here for scheduling safety, not point
   # cost). The others are estimated from that same per-step rate against
-  # their own config.yaml step counts (slab.npt_z_ps, restrained_npt_ps,
+  # their own config.yaml step counts (slab.settle_ps, restrained_npt_ps,
   # merge_nvt_ps) with generous padding, NOT independently benchmarked at
   # 48 threads -- this whole per-stage split is local-workstation-only so
   # far (smoke-tested end-to-end on ST's real data, tiny step counts),
@@ -110,11 +110,11 @@ set-resources:
     nnumas: 1
     ompthreads: 48
     time: "01:00:00"
-  lmp_npt_z:
+  lmp_settle:
     queue: "t1-share"
     nnumas: 1
     ompthreads: 48
-    time: "02:00:00"   # config.yaml slab.npt_z_ps = 100 ps
+    time: "00:30:00"   # config.yaml slab.settle_ps = 20 ps, plain NVT, no barostat
   lmp_insert_minimize:
     queue: "t1-share"
     nnumas: 1

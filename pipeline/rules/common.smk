@@ -2,8 +2,8 @@
 
 Species for the bulk (step0/step1) stage:
 - HEX:  hexadecane itself (already a complete itp; no polyply gen_params needed)
-- ST:   capped stearyl-methacrylate oligomer,  CH3-(ST)_n-CH3n
-- MMA:  capped methyl-methacrylate oligomer,   CH3-(MMA)_n-CH3n
+- ST:   capped stearyl-methacrylate oligomer,  CH3n-(ST)_n-CH3n
+- MMA:  capped methyl-methacrylate oligomer,   CH3n-(MMA)_n-CH3n
 """
 
 FF_DIR = config["forcefield_dir"]
