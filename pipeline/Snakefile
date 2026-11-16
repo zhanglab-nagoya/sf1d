@@ -6,9 +6,15 @@ actually runnable today vs. design-only).
     snakemake --use-conda -c 8 segment_volume   # step 0, fully wired
     snakemake --use-conda -c 8 results/chi.yaml # step 0 + step 1, fully wired
 
-step2_substrate.smk (the Fe2O3 substrate build) is scaffolded but not yet
-run end-to-end; step2_chis.smk (the dilute-adsorption chis themselves) is
-still design-only.
+step2_substrate.smk (the Fe2O3 substrate build), step2_dilute.smk/
+step2_convert.smk/step2_merge.smk/step2_equilibrate.smk (the solvent+
+substrate equilibration and per-species fragment insertion), and
+step2_chis.smk's compute_chis all run end-to-end for both ST and MMA as
+of 2026-11-14. The long pole is lmp_production itself (slab.production_ns,
+10 ns/species): running on the RCCS profile (profiles/rccs/) since
+2026-11-14, jobs 1996625 (ST)/1996626 (MMA), not yet complete as of
+2026-11-16 -- results/chis.yaml is not yet trustworthy until that
+finishes. See README.md's status table for the per-stage detail.
 """
 
 configfile: "config.yaml"

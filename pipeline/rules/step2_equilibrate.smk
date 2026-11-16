@@ -117,28 +117,47 @@ baseline, 6.8 ns/day/species. Every LAMMPS rule below takes the same
 to 1 locally and meant to be driven up per-rule via the `ompthreads`
 resource on a cluster profile.
 
-STATUS: the solvent/fragment split above has not yet been run end-to-end
-(2026-11-13). Prior to this split, the per-stage rule chain (fragment
-restrained throughout, as described in point 1 above) ran successfully
-for real (production_ns=10, both species) on flow2-ai, completing
-2026-11-11 (ST job 108984.jobm, MMA job 108985.jobm) -- but that run and
-subsequent local verification surfaced the fragment-restraint cavity bug
-this split fixes, plus earlier, now-fixed bugs along the way: atom types
-were never deduplicated (scripts/dedup_lammps_types.py now also collapses
-atom types, not just bond/angle/dihedral types); the z-barostat was
+STATUS: the solvent/fragment split above WAS run and validated end-to-end
+2026-11-14, confirming the cavity diagnosis directly: the fragment-free
+solvent-only chain (lmp_slab_minimize -> lmp_nvt -> close_liquid_gap ->
+lmp_gap_minimize -> lmp_settle, no barostat) converges in ~13 min
+(vs. 1hr+ unconverged with the old barostat), final density matches
+the target to 0.0007%, no cavity anywhere. Fragment insertion
+(insert_fragment -> lmp_insert_minimize -> lmp_insert_relax) was then
+validated for both ST and MMA: no residual density cavity at the
+fragment's insertion site in either species' relaxed.data. Three
+further bugs were found and fixed only by running the chain end-to-end
+for both species: a missing scipy dependency, fragment atom lines
+missing the image-flag columns the rest of the Atoms section carries, a
+Velocities section that must cover every atom or LAMMPS misparses the
+next header, and `velocity ... create`'s default loop mode requiring
+contiguous atom IDs across the whole system (see commit
+b2a85cfd43a3c27bbe1ddc98265098c0cda4ed4d for the full diagnosis of each).
+
+Prior to this split, the per-stage rule chain (fragment restrained
+throughout, as described in point 1 above) ran successfully for real
+(production_ns=10, both species) on flow2-ai, completing 2026-11-11 (ST
+job 108984.jobm, MMA job 108985.jobm) -- but that run and subsequent
+local verification surfaced the fragment-restraint cavity bug this split
+fixes, plus earlier, now-fixed bugs along the way: atom types were never
+deduplicated (scripts/dedup_lammps_types.py now also collapses atom
+types, not just bond/angle/dihedral types); the z-barostat was
 originally driven by LAMMPS's whole-box `compute pressure` (hard-requires
 group "all", so it always included the frozen substrate's own enormous
-internal virial); and -- discovered verifying the solvent/fragment split
-itself, 2026-11-13 -- even a liquid-only-pressure hand-rolled barostat
+internal virial); and a liquid-only-pressure hand-rolled barostat
 replacement for that was itself a structural dead end on this
 frozen-substrate system, not a tuning problem (see this file's own
 `lmp_settle` comment above for the full history). `lmp_npt_z` and
 `lmp/_liquid_barostat.lmp.template`/`lmp/npt_z.lmp.template` are removed
 entirely; `lmp_settle` (plain NVT, no barostat) replaces that stage.
-Local verification of the solvent-only chain through `lmp_settle` is
-in progress as of this writing. Both species' full production needs
-rerunning once this split is verified end-to-end (see the plan's own
-Verification section for the checklist).
+
+Full production for both species was resubmitted from the validated
+relaxed.data on the RCCS profile (profiles/rccs/, since flow2-ai's point
+budget ran out), jobs 1996625 (ST)/1996626 (MMA), submitted 2026-11-14 --
+running, not yet complete as of 2026-11-16 (~50% through
+slab.production_ns=10 ns for both). The self-folding chi_AS/chi_BS bug
+(Step 1, unrelated to this stage) was fixed separately in commit
+fbcd505.
 """
 
 SLAB_RES = "results/slab"

@@ -33,9 +33,11 @@ carried by the (hugely negative) Coulomb terms -- see config.yaml's
 slab.merge_minimize comment for the actual (small) interface strain this
 merge introduces, and step2_equilibrate.smk for how it gets resolved.
 
-STATUS: ran end-to-end for ST under the old fragment-included design;
-not yet re-run since the 2026-11-13 solvent/fragment split -- same
-merge_slab.py logic, just on a solvent-only box.
+STATUS: re-run and validated for both species under the 2026-11-13
+solvent/fragment split (same merge_slab.py logic, now on a solvent-only
+box) as part of the 2026-11-14 end-to-end verification -- see
+rules/step2_equilibrate.smk's module docstring for that verification's
+results.
 """
 
 SLAB_RES = "results/slab"  # shared with step2_dilute.smk/step2_convert.smk

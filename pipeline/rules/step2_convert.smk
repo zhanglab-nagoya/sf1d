@@ -42,9 +42,11 @@ mismatch ("No module named 'numpy._core._multiarray_umath'") when it
 tries to serialize job parameters for its own run metadata -- nothing to
 do with this rule's actual work.
 
-STATUS: scaffolded and validated (energy cross-check above) for ST
-(solvent+fragment still combined at that point); not yet re-run since the
-2026-11-13 solvent/fragment split, and not yet run for MMA.
+STATUS: re-run and validated for both species under the 2026-11-13
+solvent/fragment split (convert_to_lammps on the solvent-only box,
+convert_fragment_to_lammps per species) as part of the 2026-11-14
+end-to-end verification -- see rules/step2_equilibrate.smk's module
+docstring for that verification's results.
 """
 
 SLAB_RES = "results/slab"  # shared with step2_dilute.smk
