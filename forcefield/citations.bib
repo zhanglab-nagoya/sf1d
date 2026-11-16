@@ -36,7 +36,12 @@
   doi={10.1021/acs.jpcb.7b00272}
 }
 
-% L-OPLS-AA, used for the PAMA alkyl side chains (see source repo's etc/report.md section 6)
+% L-OPLS-AA -- applied to the PAMA alkyl side chains on 2026-10-28, then
+% reverted to standard OPLS-AA on 2026-11-12 (see source repo's
+% etc/report.md sections 6-7). Not required for the parameters currently
+% shipped in this directory; kept as a record of the reverted attempt,
+% and because etc/lopls-reference/ (the data source reused for the
+% backbone/ester library charges) is the same upstream repo.
 @article{LOPLS1,
   author={Siu, See Wing Iris and Pluhackova, Kristyna and B{\"o}ckmann, Rainer A.},
   title={Optimization of the OPLS-AA Force Field for Long Hydrocarbons},

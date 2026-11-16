@@ -22,67 +22,67 @@ ST                   3
     12  opls_1146      1     ST    C0B      1   0.18909091    12.0110  ; OPLS-AA library charge
     13  opls_1147      1     ST    H0C      1   0.05909091     1.0080  ; OPLS-AA library charge
     14  opls_1148      1     ST    H0D      1   0.05909091     1.0080  ; OPLS-AA library charge
-    15  opls_1149      1     ST    C0E      1  -0.14890909    12.0110  ; L-OPLS
-    16  opls_1150      1     ST    H0F      1   0.07309091     1.0080  ; L-OPLS
-    17  opls_1151      1     ST    H0G      1   0.07309091     1.0080  ; L-OPLS
-    18  opls_1152      1     ST    C0H      1  -0.14890909    12.0110  ; L-OPLS
-    19  opls_1153      1     ST    H0I      1   0.07309091     1.0080  ; L-OPLS
-    20  opls_1154      1     ST    H0J      1   0.07309091     1.0080  ; L-OPLS
-    21  opls_1155      1     ST    C0K      1  -0.14890909    12.0110  ; L-OPLS
-    22  opls_1156      1     ST    H0M      1   0.07309091     1.0080  ; L-OPLS
-    23  opls_1157      1     ST    H0N      1   0.07309091     1.0080  ; L-OPLS
-    24  opls_1158      1     ST    C0O      1  -0.14890909    12.0110  ; L-OPLS
-    25  opls_1159      1     ST    H0P      1   0.07309091     1.0080  ; L-OPLS
-    26  opls_1160      1     ST    H0Q      1   0.07309091     1.0080  ; L-OPLS
-    27  opls_1161      1     ST    C0R      1  -0.14890909    12.0110  ; L-OPLS
-    28  opls_1162      1     ST    H0S      1   0.07309091     1.0080  ; L-OPLS
-    29  opls_1163      1     ST    H0T      1   0.07309091     1.0080  ; L-OPLS
-    30  opls_1164      1     ST    C0U      1  -0.14890909    12.0110  ; L-OPLS
-    31  opls_1165      1     ST    H0V      1   0.07309091     1.0080  ; L-OPLS
-    32  opls_1166      1     ST    H0W      1   0.07309091     1.0080  ; L-OPLS
-    33  opls_1167      1     ST    C0X      2  -0.14890909    12.0110  ; L-OPLS
-    34  opls_1168      1     ST    H0Y      2   0.07309091     1.0080  ; L-OPLS
-    35  opls_1169      1     ST    H0Z      2   0.07309091     1.0080  ; L-OPLS
-    36  opls_1170      1     ST    C10      2  -0.14890909    12.0110  ; L-OPLS
-    37  opls_1171      1     ST    H11      2   0.07309091     1.0080  ; L-OPLS
-    38  opls_1172      1     ST    H12      2   0.07309091     1.0080  ; L-OPLS
-    39  opls_1173      1     ST    C13      2  -0.14890909    12.0110  ; L-OPLS
-    40  opls_1174      1     ST    H14      2   0.07309091     1.0080  ; L-OPLS
-    41  opls_1175      1     ST    H15      2   0.07309091     1.0080  ; L-OPLS
-    42  opls_1176      1     ST    C16      2  -0.14890909    12.0110  ; L-OPLS
-    43  opls_1177      1     ST    H17      2   0.07309091     1.0080  ; L-OPLS
-    44  opls_1178      1     ST    H18      2   0.07309091     1.0080  ; L-OPLS
-    45  opls_1179      1     ST    C19      2  -0.14890909    12.0110  ; L-OPLS
-    46  opls_1180      1     ST    H1A      2   0.07309091     1.0080  ; L-OPLS
-    47  opls_1181      1     ST    H1B      2   0.07309091     1.0080  ; L-OPLS
-    48  opls_1182      1     ST    C1C      2  -0.14890909    12.0110  ; L-OPLS
-    49  opls_1183      1     ST    H1D      2   0.07309091     1.0080  ; L-OPLS
-    50  opls_1184      1     ST    H1E      2   0.07309091     1.0080  ; L-OPLS
-    51  opls_1185      1     ST    C1F      2  -0.14890909    12.0110  ; L-OPLS
-    52  opls_1186      1     ST    H1G      2   0.07309091     1.0080  ; L-OPLS
-    53  opls_1187      1     ST    H1H      2   0.07309091     1.0080  ; L-OPLS
-    54  opls_1188      1     ST    C1I      2  -0.14890909    12.0110  ; L-OPLS
-    55  opls_1189      1     ST    H1J      2   0.07309091     1.0080  ; L-OPLS
-    56  opls_1190      1     ST    H1K      2   0.07309091     1.0080  ; L-OPLS
-    57  opls_1191      1     ST    C1M      2  -0.14890909    12.0110  ; L-OPLS
-    58  opls_1192      1     ST    H1N      2   0.07309091     1.0080  ; L-OPLS
-    59  opls_1193      1     ST    H1O      2   0.07309091     1.0080  ; L-OPLS
-    60  opls_1194      1     ST    C1P      2  -0.14890909    12.0110  ; L-OPLS
-    61  opls_1195      1     ST    H1Q      2   0.07309091     1.0080  ; L-OPLS
-    62  opls_1196      1     ST    H1R      2   0.07309091     1.0080  ; L-OPLS
-    63  opls_1197      1     ST    C1S      2  -0.22290909    12.0110  ; L-OPLS
-    64  opls_1198      1     ST    H1T      2   0.07309091     1.0080  ; L-OPLS
-    65  opls_1199      1     ST    H1U      2   0.07309091     1.0080  ; L-OPLS
-    66  opls_1200      1     ST    H1V      3   0.07309091     1.0080  ; L-OPLS
+    15  opls_1149      1     ST    C0E      1  -0.12090909    12.0110  ; OPLS-AA library charge
+    16  opls_1150      1     ST    H0F      1   0.05909091     1.0080  ; OPLS-AA library charge
+    17  opls_1151      1     ST    H0G      1   0.05909091     1.0080  ; OPLS-AA library charge
+    18  opls_1152      1     ST    C0H      1  -0.12090909    12.0110  ; OPLS-AA library charge
+    19  opls_1153      1     ST    H0I      1   0.05909091     1.0080  ; OPLS-AA library charge
+    20  opls_1154      1     ST    H0J      1   0.05909091     1.0080  ; OPLS-AA library charge
+    21  opls_1155      1     ST    C0K      1  -0.12090909    12.0110  ; OPLS-AA library charge
+    22  opls_1156      1     ST    H0M      1   0.05909091     1.0080  ; OPLS-AA library charge
+    23  opls_1157      1     ST    H0N      1   0.05909091     1.0080  ; OPLS-AA library charge
+    24  opls_1158      1     ST    C0O      1  -0.12090909    12.0110  ; OPLS-AA library charge
+    25  opls_1159      1     ST    H0P      1   0.05909091     1.0080  ; OPLS-AA library charge
+    26  opls_1160      1     ST    H0Q      1   0.05909091     1.0080  ; OPLS-AA library charge
+    27  opls_1161      1     ST    C0R      1  -0.12090909    12.0110  ; OPLS-AA library charge
+    28  opls_1162      1     ST    H0S      1   0.05909091     1.0080  ; OPLS-AA library charge
+    29  opls_1163      1     ST    H0T      1   0.05909091     1.0080  ; OPLS-AA library charge
+    30  opls_1164      1     ST    C0U      1  -0.12090909    12.0110  ; OPLS-AA library charge
+    31  opls_1165      1     ST    H0V      1   0.05909091     1.0080  ; OPLS-AA library charge
+    32  opls_1166      1     ST    H0W      1   0.05909091     1.0080  ; OPLS-AA library charge
+    33  opls_1167      1     ST    C0X      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    34  opls_1168      1     ST    H0Y      2   0.05909091     1.0080  ; OPLS-AA library charge
+    35  opls_1169      1     ST    H0Z      2   0.05909091     1.0080  ; OPLS-AA library charge
+    36  opls_1170      1     ST    C10      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    37  opls_1171      1     ST    H11      2   0.05909091     1.0080  ; OPLS-AA library charge
+    38  opls_1172      1     ST    H12      2   0.05909091     1.0080  ; OPLS-AA library charge
+    39  opls_1173      1     ST    C13      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    40  opls_1174      1     ST    H14      2   0.05909091     1.0080  ; OPLS-AA library charge
+    41  opls_1175      1     ST    H15      2   0.05909091     1.0080  ; OPLS-AA library charge
+    42  opls_1176      1     ST    C16      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    43  opls_1177      1     ST    H17      2   0.05909091     1.0080  ; OPLS-AA library charge
+    44  opls_1178      1     ST    H18      2   0.05909091     1.0080  ; OPLS-AA library charge
+    45  opls_1179      1     ST    C19      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    46  opls_1180      1     ST    H1A      2   0.05909091     1.0080  ; OPLS-AA library charge
+    47  opls_1181      1     ST    H1B      2   0.05909091     1.0080  ; OPLS-AA library charge
+    48  opls_1182      1     ST    C1C      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    49  opls_1183      1     ST    H1D      2   0.05909091     1.0080  ; OPLS-AA library charge
+    50  opls_1184      1     ST    H1E      2   0.05909091     1.0080  ; OPLS-AA library charge
+    51  opls_1185      1     ST    C1F      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    52  opls_1186      1     ST    H1G      2   0.05909091     1.0080  ; OPLS-AA library charge
+    53  opls_1187      1     ST    H1H      2   0.05909091     1.0080  ; OPLS-AA library charge
+    54  opls_1188      1     ST    C1I      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    55  opls_1189      1     ST    H1J      2   0.05909091     1.0080  ; OPLS-AA library charge
+    56  opls_1190      1     ST    H1K      2   0.05909091     1.0080  ; OPLS-AA library charge
+    57  opls_1191      1     ST    C1M      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    58  opls_1192      1     ST    H1N      2   0.05909091     1.0080  ; OPLS-AA library charge
+    59  opls_1193      1     ST    H1O      2   0.05909091     1.0080  ; OPLS-AA library charge
+    60  opls_1194      1     ST    C1P      2  -0.12090909    12.0110  ; OPLS-AA library charge
+    61  opls_1195      1     ST    H1Q      2   0.05909091     1.0080  ; OPLS-AA library charge
+    62  opls_1196      1     ST    H1R      2   0.05909091     1.0080  ; OPLS-AA library charge
+    63  opls_1197      1     ST    C1S      2  -0.18090909    12.0110  ; OPLS-AA library charge
+    64  opls_1198      1     ST    H1T      2   0.05909091     1.0080  ; OPLS-AA library charge
+    65  opls_1199      1     ST    H1U      2   0.05909091     1.0080  ; OPLS-AA library charge
+    66  opls_1200      1     ST    H1V      3   0.05909091     1.0080  ; OPLS-AA library charge
 [ bonds ]
     2     1     1      0.1090 284512.000
     3     2     1      0.1090 284512.000
     4     2     1      0.1090 284512.000
-    5     2     1      0.1510 265265.600
+     5     2     1      0.1529  224262.400  ; sp3 backbone fix (was CM-CT vinyl-adjacent)
      6     5     1      0.1529  224262.400  ; sp3 backbone fix (was vinyl C=C)
-    7     6     1      0.1080 284512.000
-    8     6     1      0.1080 284512.000
-    9     5     1      0.1444 343088.000
+     7     6     1      0.1090  284512.000  ; sp3 backbone fix (was CM-HC vinyl-adjacent)
+     8     6     1      0.1090  284512.000  ; sp3 backbone fix (was CM-HC vinyl-adjacent)
+     9     5     1      0.1522  265265.600  ; sp3 backbone fix (was C-CM conjugated-vinyl)
    10     9     1      0.1229 476976.000
    11     9     1      0.1327 179075.200
    12    11     1      0.1410 267776.000
@@ -145,12 +145,12 @@ ST                   3
 ;  ai    aj    ak funct            c0            c1            c2            c3 
     1     2     3     1    107.800    276.144
     1     2     4     1    107.800    276.144
-    1     2     5     1    109.500    292.880
+     1     2     5     1     110.700     313.800  ; corrected HC-CT-CT (was raw LigParGen fit)
      2     5     6     1     112.700     488.273  ; sp3 backbone fix (was vinyl sp2)
      5     6     7     1     110.700     313.800  ; sp3 backbone fix (was vinyl sp2)
      5     6     8     1     110.700     313.800  ; sp3 backbone fix (was vinyl sp2)
-     2     5     9     1     112.700     488.273  ; sp3 backbone fix (was vinyl sp2)
-    5     9    10     1    125.300    669.440
+     2     5     9     1     111.100     527.184  ; corrected CT-CT-C (was blanket CT-CT-CT backbone fix)
+     5     9    10     1     120.400     669.440  ; corrected CT-C-O (was raw LigParGen fit)
     5     9    11     1    111.400    677.808
     9    11    12     1    116.900    694.544
    11    12    13     1    109.500    292.880
@@ -216,7 +216,7 @@ ST                   3
    58    57    59     1    107.800    276.144
    16    15    17     1    107.800    276.144
    37    36    39     1    110.700    313.800
-     6     5     9     1     112.700     488.273  ; sp3 backbone fix (was vinyl sp2)
+     6     5     9     1     111.100     527.184  ; corrected CT-CT-C (was blanket CT-CT-CT backbone fix)
    41    39    42     1    110.700    313.800
    56    54    57     1    110.700    313.800
    19    18    21     1    110.700    313.800
@@ -228,7 +228,7 @@ ST                   3
    37    36    38     1    107.800    276.144
    59    57    60     1    110.700    313.800
    65    63    66     1    107.800    276.144
-    4     2     5     1    109.500    292.880
+     4     2     5     1     110.700     313.800  ; corrected HC-CT-CT (was raw LigParGen fit)
    40    39    42     1    110.700    313.800
    29    27    30     1    110.700    313.800
    22    21    24     1    110.700    313.800
@@ -261,7 +261,7 @@ ST                   3
    34    33    36     1    110.700    313.800
      7     6     8     1     107.800     276.144  ; sp3 backbone fix (was vinyl sp2)
    46    45    47     1    107.800    276.144
-    3     2     5     1    109.500    292.880
+     3     2     5     1     110.700     313.800  ; corrected HC-CT-CT (was raw LigParGen fit)
    10     9    11     1    123.400    694.544
    52    51    53     1    107.800    276.144
    25    24    27     1    110.700    313.800
@@ -276,29 +276,29 @@ ST                   3
 [ dihedrals ]
 ; PROPER DIHEDRAL ANGLES
 ;  ai    aj    ak    al funct            c0            c1            c2            c3            c4            c5
-     9     5     6     7     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
-     9     5     6     8     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
-    9    5    2    4        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-    9    5    2    1        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-    9    5    2    3        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-    6    5    2    1        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-    6    5    2    3        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-    6    5    2    4        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-    54    51    48    45     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    27    24    21    18     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    24    21    18    15     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    63    60    57    54     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    57    54    51    48     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    48    45    42    39     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    33    30    27    24     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    60    57    54    51     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    30    27    24    21     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    51    48    45    42     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    36    33    30    27     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    21    18    15    12     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    42    39    36    33     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    45    42    39    36     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
-    39    36    33    30     3    0.518787   -0.230192    0.896807   -1.491340    0.000000    0.000000  ; L-OPLS CT-CT-CT-CT
+     9     5     6     7     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; corrected C-CT-CT-HC (was blanket CT-CT-CT-HC backbone fix)
+     9     5     6     8     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; corrected C-CT-CT-HC (was blanket CT-CT-CT-HC backbone fix)
+     9     5     2     4     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+     9     5     2     1     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+     9     5     2     3     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+     6     5     2     1     3    0.627600    1.882800    0.000000   -2.510400    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+     6     5     2     3     3    0.627600    1.882800    0.000000   -2.510400    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+     6     5     2     4     3    0.627600    1.882800    0.000000   -2.510400    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    54    51    48    45     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    27    24    21    18     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    24    21    18    15     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    63    60    57    54     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    57    54    51    48     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    48    45    42    39     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    33    30    27    24     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    60    57    54    51     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    30    27    24    21     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    51    48    45    42     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    36    33    30    27     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    21    18    15    12     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    42    39    36    33     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    45    42    39    36     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
+    39    36    33    30     3    2.928800   -1.464400    0.209200   -1.673600    0.000000    0.000000  ; OPLS-AA (reverted from L-OPLS, corrected CT-CT-CT-CT value)
    27   24   21   23        3       0.628   1.883   0.000  -2.510  -0.000   0.000
    33   30   27   29        3       0.628   1.883   0.000  -2.510  -0.000   0.000
    45   42   39   40        3       0.628   1.883   0.000  -2.510  -0.000   0.000
@@ -334,7 +334,7 @@ ST                   3
    18   15   12   11        3       2.874   0.582   2.092  -5.548  -0.000   0.000
    15   12   11    9        3      -2.197   5.201   0.527  -3.531  -0.000   0.000
    12   11    9    5        3      31.206  -9.768  -21.439  -0.000  -0.000   0.000
-   12   11    9   10        3      21.439   0.000  -21.439  -0.000  -0.000   0.000
+    12    11     9    10     3   20.920000    0.000000  -20.920000    0.000000    0.000000    0.000000  ; corrected CT-OS-C-O (was raw LigParGen fit)
      8     6     5     2     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
      7     6     5     2     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
    47   45   42   39        3       0.628   1.883   0.000  -2.510  -0.000   0.000
@@ -444,10 +444,10 @@ ST                   3
    17   15   12   11        3       0.979   2.937   0.000  -3.916  -0.000   0.000
    14   12   11    9        3       0.414   1.243   0.000  -1.657  -0.000   0.000
    13   12   11    9        3       0.414   1.243   0.000  -1.657  -0.000   0.000
-   10    9    5    6        3      30.334  -5.230  -25.104  -0.000  -0.000   0.000
-   10    9    5    2        3       1.789  -5.052  -0.962   4.226  -0.000   0.000
-   11    9    5    6        3      -5.858  -6.694  12.552  -0.000  -0.000   0.000
-   11    9    5    2        3       1.789  -5.052  -0.962   4.226  -0.000   0.000
+    10     9     5     6     3    4.878550    0.000000   -4.878550    0.000000    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    10     9     5     2     3    4.878550    0.000000   -4.878550    0.000000    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    11     9     5     6     3   -1.156880   -3.470630    0.000000    4.627500    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    11     9     5     2     3   -1.156880   -3.470630    0.000000    4.627500    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
 
 [ pairs ]
      1     6    1

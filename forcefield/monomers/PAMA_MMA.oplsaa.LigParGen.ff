@@ -30,11 +30,11 @@ MMA                   3
     5     2     1      0.1410 267776.000
     6     5     1      0.1327 179075.200
     7     6     1      0.1229 476976.000
-    8     6     1      0.1444 343088.000
+     8     6     1      0.1522  265265.600  ; sp3 backbone fix (was C-CM conjugated-vinyl)
      9     8     1      0.1529  224262.400  ; sp3 backbone fix (was vinyl C=C)
-   10     9     1      0.1080 284512.000
-   11     9     1      0.1080 284512.000
-   12     8     1      0.1510 265265.600
+    10     9     1      0.1090  284512.000  ; sp3 backbone fix (was CM-HC vinyl-adjacent)
+    11     9     1      0.1090  284512.000  ; sp3 backbone fix (was CM-HC vinyl-adjacent)
+    12     8     1      0.1529  224262.400  ; sp3 backbone fix (was CM-CT vinyl-adjacent)
    13    12     1      0.1090 284512.000
    14    12     1      0.1090 284512.000
    15    12     1      0.1090 284512.000
@@ -47,13 +47,13 @@ MMA                   3
     2     5     6     1    116.900    694.544
     5     6     7     1    123.400    694.544
     5     6     8     1    111.400    677.808
-     6     8     9     1     112.700     488.273  ; sp3 backbone fix (was vinyl sp2)
+     6     8     9     1     111.100     527.184  ; corrected CT-CT-C (was blanket CT-CT-CT backbone fix)
      8     9    10     1     110.700     313.800  ; sp3 backbone fix (was vinyl sp2)
      8     9    11     1     110.700     313.800  ; sp3 backbone fix (was vinyl sp2)
-     6     8    12     1     112.700     488.273  ; sp3 backbone fix (was vinyl sp2)
-    8    12    13     1    109.500    292.880
-    8    12    14     1    109.500    292.880
-    8    12    15     1    109.500    292.880
+     6     8    12     1     111.100     527.184  ; corrected CT-CT-C (was blanket CT-CT-CT backbone fix)
+     8    12    13     1     110.700     313.800  ; corrected HC-CT-CT (was raw LigParGen fit)
+     8    12    14     1     110.700     313.800  ; corrected HC-CT-CT (was raw LigParGen fit)
+     8    12    15     1     110.700     313.800  ; corrected HC-CT-CT (was raw LigParGen fit)
    13    12    14     1    107.800    276.144
      9     8    12     1     112.700     488.273  ; sp3 backbone fix (was vinyl sp2)
    13    12    15     1    107.800    276.144
@@ -61,7 +61,7 @@ MMA                   3
     3     2     4     1    107.800    276.144
     3     2     5     1    109.500    292.880
     4     2     5     1    109.500    292.880
-    7     6     8     1    125.300    669.440
+     7     6     8     1     120.400     669.440  ; corrected CT-C-O (was raw LigParGen fit)
     10     9    11     1     107.800     276.144  ; sp3 backbone fix (was vinyl sp2)
 
 [ dihedrals ]
@@ -76,21 +76,21 @@ MMA                   3
     6    5    2    4        3       0.414   1.243   0.000  -1.657  -0.000   0.000
     6    5    2    1        3       0.414   1.243   0.000  -1.657  -0.000   0.000
     8    6    5    2        3      31.206  -9.768  -21.439  -0.000  -0.000   0.000
-    9    8    6    7        3      30.334  -5.230  -25.104  -0.000  -0.000   0.000
-    9    8    6    5        3      -5.858  -6.694  12.552  -0.000  -0.000   0.000
-   12    8    6    7        3       1.789  -5.052  -0.962   4.226  -0.000   0.000
-   12    8    6    5        3       1.789  -5.052  -0.962   4.226  -0.000   0.000
+     9     8     6     7     3    4.878550    0.000000   -4.878550    0.000000    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+     9     8     6     5     3   -1.156880   -3.470630    0.000000    4.627500    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    12     8     6     7     3    4.878550    0.000000   -4.878550    0.000000    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    12     8     6     5     3   -1.156880   -3.470630    0.000000    4.627500    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
     12     8     9    10     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
     12     8     9    11     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
-    10     9     8     6     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
-    11     9     8     6     3      0.6276      1.8828      0.0000     -2.5104      0.0000      0.0000  ; sp3 backbone fix (was C=C no-rotation)
-   13   12    8    6        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-   14   12    8    6        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-   15   12    8    6        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-   15   12    8    9        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-   14   12    8    9        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-   13   12    8    9        3      -0.778  -2.335   0.000   3.113  -0.000   0.000
-    7    6    5    2        3      21.439   0.000  -21.439  -0.000  -0.000   0.000
+    10     9     8     6     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; corrected C-CT-CT-HC (was blanket CT-CT-CT-HC backbone fix)
+    11     9     8     6     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; corrected C-CT-CT-HC (was blanket CT-CT-CT-HC backbone fix)
+    13    12     8     6     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    14    12     8     6     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    15    12     8     6     3   -0.209200   -0.627600    0.000000    0.836800    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    15    12     8     9     3    0.627600    1.882800    0.000000   -2.510400    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    14    12     8     9     3    0.627600    1.882800    0.000000   -2.510400    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+    13    12     8     9     3    0.627600    1.882800    0.000000   -2.510400    0.000000    0.000000  ; sp3 backbone fix (was LigParGen vinyl-conjugated fit)
+     7     6     5     2     3   20.920000    0.000000  -20.920000    0.000000    0.000000    0.000000  ; corrected CT-OS-C-O (was raw LigParGen fit)
 
 [ pairs ]
      1     6    1

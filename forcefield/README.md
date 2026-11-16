@@ -12,7 +12,7 @@ used to *derive* `sf1d`'s `chi`/`chis` parameters; it is not consumed by
 
 ```
 forcefield/
-├── monomers/     — ST/MMA topology (GROMACS OPLS-AA/L-OPLS) + 3D structure + chain-end caps
+├── monomers/     — ST/MMA topology (GROMACS OPLS-AA) + 3D structure + chain-end caps
 ├── solvent/      — hexadecane topology, coordinates, build script
 ├── substrate/    — Fe2O3 slab (LAMMPS data file)
 ├── oplsaa.ff/    — patched stock GROMACS force field (adds L-OPLS #ifdef blocks)
@@ -23,15 +23,17 @@ forcefield/
 ## Provenance
 
 **Monomer topology + links**, from `jotelha/polyply_1.0`, branch
-`2026-10-28-PAMA-parameters`, under `polyply/data/oplsaaLigParGen/`:
+`2026-11-12-PAMA-parameters`, under `polyply/data/oplsaaLigParGen/`
+(originally pulled from `2026-10-28-PAMA-parameters`; updated 2026-11-16 —
+see "Update 2026-11-12/16" below):
 
 | File here | Source |
 |---|---|
-| `monomers/PAMA_ST.oplsaa.LigParGen.ff` | `PAMA_ST.oplsaa.LigParGen.ff` (unchanged) |
-| `monomers/PAMA_MMA.oplsaa.LigParGen.ff` | `PAMA_MMA.oplsaa.LigParGen.ff` (unchanged) |
-| `monomers/CH3.ff`, `monomers/CH3n.ff` | unchanged (generic PAMA chain-end methyl caps) |
-| `PAMA_ST_MMA.oplsaa.LigParGen_links.ff` | filtered from `PAMA.oplsaa.LigParGen_links.ff` |
-| `custom-ffnonbonded.itp` | from `../../etc/custom-ffnonbonded.itp` (unchanged) |
+| `monomers/PAMA_ST.oplsaa.LigParGen.ff` | `PAMA_ST.oplsaa.LigParGen.ff` |
+| `monomers/PAMA_MMA.oplsaa.LigParGen.ff` | `PAMA_MMA.oplsaa.LigParGen.ff` |
+| `monomers/CH3.ff`, `monomers/CH3n.ff` | unchanged since 2026-10-29 (generic PAMA chain-end methyl caps) |
+| `PAMA_ST_MMA.oplsaa.LigParGen_links.ff` | filtered from `PAMA.oplsaa.LigParGen_links.ff`, unchanged since 2026-10-29 (last touched upstream 2026-03-16, before either PAMA-parameters branch existed) |
+| `custom-ffnonbonded.itp` | from `../../etc/custom-ffnonbonded.itp` |
 | `citations.bib` | filtered from `citations.bib` (dropped two entries for an unrelated battery-polymer monomer) |
 
 **Monomer 3D structures**, from the same fork, `etc/PAMA-monomers/`:
@@ -69,10 +71,52 @@ to add a third monomer).
 rather than filtered — it's small and filtering by atom-type ID risked
 silently dropping a type referenced only via an angle/dihedral line.
 
+## Update 2026-11-12/16: backbone/LJ audit fixes, L-OPLS reverted
+
+Pulled in from the source repo's `2026-11-12-PAMA-parameters` branch
+(superseding `2026-10-28-PAMA-parameters`, checked into this repo on a
+dated copy, `2026-11-16-sf1d`): `monomers/PAMA_ST.oplsaa.LigParGen.ff`,
+`monomers/PAMA_MMA.oplsaa.LigParGen.ff`, `custom-ffnonbonded.itp`, and
+`citations.bib` all updated; `CH3.ff`/`CH3n.ff`/the links file/the two
+monomer `.pdb` geometries are unchanged. Per the source repo's
+`etc/report.md` sections 6-10:
+
+- **L-OPLS reverted** (section 7): the 2026-10-28 retyping of ST's long
+  alkyl tail to L-OPLS-specific charges/LJ/dihedrals is reverted back to
+  plain OPLS-AA, so the whole ST repeat unit is now consistently standard
+  OPLS-AA with library charges throughout — no L-OPLS content remains in
+  any monomer. The `citations.bib` L-OPLS entries are kept, but only as a
+  record of the reverted attempt (see that file's own comment).
+- **sp2→sp3 backbone residuals fixed** (sections 8-10): a systematic
+  audit of every bond/angle/dihedral/LJ value touching the backbone
+  carbons and ester region against stock OPLS-AA turned up several more
+  terms LigParGen had parametrized against the free (sp2, vinyl) monomer
+  rather than the polymerized (sp3) one — stale `CM`-flavored bond/angle
+  values at the alpha carbon's two other substituents, two mistyped
+  `CM-HC`-flavored Cbeta-H bonds, several internally-inconsistent
+  per-molecule dihedral fits around the alpha carbon, a wrong generic-
+  ether LJ on the ester ether oxygen (should be the ester-specific
+  `opls_467`), and (caught separately) a bug in the L-OPLS-revert script
+  that used the wrong stock dihedral curve for the raw `CT-CT-CT-CT` tail
+  torsion. All now corrected and tagged in-line (`; sp3 backbone fix
+  (was ...)`, `; corrected ... (was ...)`, `; OPLS-AA (reverted from
+  L-OPLS...)`). Net charge confirmed exactly 0 for both ST and MMA after
+  the update (re-checked directly in this repo, not just taken on
+  faith).
+- Everything else (atom numbering, residue/atom names, `[ pairs ]`,
+  overall monomer structure) is unchanged — this is a parameter
+  correction, not a re-derivation.
+
+Since ST's alkyl tail no longer uses L-OPLS, the only remaining reason
+this repo needs `oplsaa.ff/`'s L-OPLS `#ifdef` patch (and every `mdp/
+*.mdp`'s `-DLOPLS` define) is hexadecane's own L-OPLS dependency
+(`solvent/README.md`) — unrelated to this update, not touched here.
+
 ## What's in each monomer
 
-- **ST** = stearyl methacrylate (long C18 alkyl ester side chain via L-OPLS;
-  atom types `opls_1135`–`opls_11xx`). This is the oil-soluble "buoy" monomer.
+- **ST** = stearyl methacrylate (long C18 alkyl ester side chain, standard
+  OPLS-AA as of the 2026-11-12/16 update above; atom types
+  `opls_1135`–`opls_11xx`). This is the oil-soluble "buoy" monomer.
 - **MMA** = methyl methacrylate (short polar ester side chain; atom types
   `opls_1084`–`opls_1098`). This is the surface-affine "anchor" monomer.
 - **CH3** / **CH3n** = generic methyl caps for the chain head and tail
@@ -82,10 +126,10 @@ silently dropping a type referenced only via an angle/dihedral line.
 Each monomer `.ff` file is a GROMACS `[ moleculetype ]` fragment (atoms,
 bonds, angles, dihedrals, pairs) with its `[ atomtypes ]` block already
 stripped (per the source repo's convention — atom types live only in
-`custom-ffnonbonded.itp` plus stock `oplsaa.ff`). Backbone sp3 hybridization
-fixes (methacrylate C=C → saturated backbone) and L-OPLS alkyl retyping were
-already applied upstream; see that repo's `etc/report.md` for the full
-rationale if force constants look surprising.
+`custom-ffnonbonded.itp` plus stock `oplsaa.ff`). Backbone sp3
+hybridization fixes (methacrylate C=C → saturated backbone) were already
+applied upstream; see that repo's `etc/report.md` for the full rationale
+if force constants look surprising.
 
 `monomers/st.pdb` and `monomers/mma.pdb` are standalone single-monomer 3D
 structures (LigParGen output geometry, atom naming matches the `.ff` files)
@@ -105,5 +149,7 @@ include path alongside the stock `oplsaa.ff/ffnonbonded.itp`.
 ## Citations
 
 See `citations.bib`: OPLS-AA / LigParGen (Jorgensen & Tirado-Rives 2005;
-Dodda et al. 2017 ×2), L-OPLS for the alkyl side chains (Siu et al. 2012;
-Pluhackova et al. 2015), and polyply itself (Grunewald et al. 2022).
+Dodda et al. 2017 ×2), and polyply itself (Grunewald et al. 2022). The
+L-OPLS entries (Siu et al. 2012; Pluhackova et al. 2015) are kept only as
+a record of the reverted 2026-10-28 L-OPLS retyping attempt (see "Update
+2026-11-12/16" above) — no monomer here actually uses L-OPLS.
