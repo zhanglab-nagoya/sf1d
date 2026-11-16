@@ -12,26 +12,49 @@ relax to a stable plateau within ~30 ps of switching back to ref_p=1 bar
 (HEX: ~748 kg/m^3 vs. a ~770 kg/m^3 literature reference -- a normal
 few-percent OPLS/L-OPLS deviation, not a red flag).
 
-solubility_chi's cohesive-energy-density numbers (2026-11-05 run:
-delta_HEX=14.06, delta_ST=11.44, delta_MMA=14.12 MPa^0.5, chi_AS=0.83,
-chi_BS~0) carry real uncertainty worth flagging before trusting them
-quantitatively: delta_ST < delta_HEX is at least directionally plausible
-(ST10's comb architecture -- a C18 side chain hanging off every backbone
-unit -- packs less efficiently than linear hexadecane), but chi_AS (the
-alkyl-rich, "should mix well with hexadecane" species) coming out larger
-than chi_BS (the polar-ester MMA) is the opposite of naive "like dissolves
-like" intuition. The likely cause is under-sampling, not a bug in the
-CED/chi arithmetic itself (same-nonbonded-method vacuum/liquid comparison
-confirmed correct -- see vacuum_nvt's docstring for the earlier,
-wrong-methodology attempt this replaced): bulk_npt's 200 ps production
-window may be too short for ST10's floppier chains to reach a
-conformationally representative ensemble, even though density itself
-visibly plateaus much faster. This is exactly the known limitation
-forcefield/chi_chis_from_md.md's step 1 already calls out ("primary,
-cheap" solubility-parameter route, with alchemical TI/BAR and single-chain
-R_g matching as listed refinements) -- not a reason to block on this
-before moving on, but a reason not to feed these specific numbers into
-sf1d without revisiting sampling length first.
+solubility_chi's cohesive-energy-density numbers, current as of the
+2026-11-16 fix below: delta_HEX=15.10, delta_ST=11.22, delta_MMA=13.04
+MPa^0.5, chi_AS=1.83, chi_BS=0.51.
+
+**2026-11-05 run was methodologically broken, not just noisy:**
+delta_HEX=14.06, delta_ST=11.44, delta_MMA=14.12, chi_AS=0.83, chi_BS~0.
+chi_BS coming out ~0 (MMA's melt looking exactly as cohesive as plain
+hexadecane) turned out to be a real artifact, confirmed live 2026-11-16
+via energy decomposition (gmx energy LJ-14/Coulomb-14/LJ-(SR)/
+Coulomb-(SR)/Coul.-recip.): an UNRESTRAINED floppy 10-mer collapses onto
+itself over vacuum_nvt's 100 ps, self-solvating its own polar groups
+intramolecularly almost as effectively as the real liquid phase does
+intermolecularly -- MMA10's vacuum Coulomb(SR) (-1304 kJ/mol) nearly
+equaled the liquid's per-molecule Coulomb(SR) (-1319 kJ/mol), collapsing
+the vacuum/liquid energy gap the whole CED method depends on. ST10 showed
+the same mechanism, just diluted by its large nonpolar C18 side chain
+(LJ(SR) only ~50% cancelled, vs. MMA's near-total Coulomb(SR)
+cancellation). Fixed by adding a one-sided pull restraint (see
+vacuum_nvt's docstring and mdp/vacuum_nvt.mdp) that stops the chain
+folding below roughly an extended conformation without rigidly freezing
+it. Two bugs surfaced getting this restraint to actually work, both
+confirmed live: grompp's `-n` suppresses its own auto-generated "System"
+index group (had to be written explicitly into the custom .ndx), and
+GROMACS's `flat-bottom` pull type restrains ABOVE the target distance,
+not below it -- `flat-bottom-high` is the one-sided-below type actually
+wanted here.
+
+chi_AS still coming out noticeably larger than chi_BS (the polar-ester
+MMA binding hexadecane better than the alkyl-rich ST does) remains the
+opposite of naive "like dissolves like" intuition, and the fix above
+didn't change that ordering (if anything, sharpened it). Not yet
+resolved -- directionally plausible (ST10's comb architecture, a C18 side
+chain hanging off every backbone unit, packs less efficiently than linear
+hexadecane than naive "alkyl similarity" reasoning would suggest) but
+could also still be under-sampling (bulk_npt's 200 ps production window
+may be too short for ST10's floppier chains to reach a conformationally
+representative ensemble even though density itself plateaus much
+faster). This is exactly the known limitation forcefield/chi_chis_from_md.md's
+step 1 already calls out ("primary, cheap" solubility-parameter route,
+with alchemical TI/BAR and single-chain R_g matching as listed
+refinements) -- not a reason to block on this before moving on, but a
+reason to sanity-check these specific numbers again at step 3's
+full-chain MD comparison before trusting them in isolation.
 """
 
 RES = "results/bulk"
@@ -451,39 +474,104 @@ rule vacuum_nvt:
     """Thermal average of the single molecule's intramolecular-only
     potential energy at temperature_K -- the vacuum-reference half of the
     cohesive-energy-density split (bulk_potential is the liquid half).
-    Reuses mdp/nvt.mdp VERBATIM (same PME, same 1.1 nm cutoffs as the
-    liquid-phase runs) on single_em.gro (already cleanly resolved -- see
-    mdp/em.mdp), not a separate "plain cutoff" vacuum treatment -- confirmed
-    live 2026-11-05 that mismatch matters: an earlier attempt gave
-    ST10/MMA10 *lower* solubility parameters than plain hexadecane, which
-    is physically backwards for ester-containing oligomers, because the
-    different nonbonded method biased the subtraction. Single-molecule
-    periodic images at this 5 nm box's separation are negligible, so
+    Reuses mdp/nvt.mdp's own nonbonded settings VERBATIM (same PME, same
+    1.1 nm cutoffs as the liquid-phase runs, via mdp/vacuum_nvt.mdp) on
+    single_em.gro (already cleanly resolved -- see mdp/em.mdp), not a
+    separate "plain cutoff" vacuum treatment -- confirmed live 2026-11-05
+    that mismatch matters: an earlier attempt gave ST10/MMA10 *lower*
+    solubility parameters than plain hexadecane, which is physically
+    backwards for ester-containing oligomers, because the different
+    nonbonded method biased the subtraction. Single-molecule periodic
+    images at this 5 nm box's separation are negligible, so
     same-method-as-the-liquid is what actually matters, not strict
-    non-periodicity."""
+    non-periodicity.
+
+    Confirmed live 2026-11-16: an UNRESTRAINED single oligomer in vacuum
+    folds onto itself over this 100 ps run, nearly reproducing the liquid
+    phase's own intermolecular cohesive energy *intramolecularly*
+    (self-solvating its ester groups) -- MMA10's vacuum Coulomb(SR)
+    (-1304 kJ/mol) came out almost equal to the liquid's per-molecule
+    Coulomb(SR) (-1319 kJ/mol), collapsing the vacuum/liquid gap this whole
+    method depends on and driving chi_BS to ~0. ST10 showed the same
+    mechanism (less severely, since its C18 side tail dilutes the effect).
+    mdp/vacuum_nvt.mdp adds a one-sided (flat-bottom) pull restraint
+    between the oligomer's two terminal cap atoms, sized from its own
+    backbone bond-path length (backbone_bond_path_length in common.smk) so
+    it can't collapse below roughly an extended conformation, but is free
+    to fluctuate above that -- not a rigid freeze, just removing the
+    folding pathway that was corrupting the vacuum reference state.
+
+    Confirmed live 2026-11-16: ST10's single_em.gro is ALREADY close to
+    fully extended (2.78 nm end-to-end, vs. a ~2.75 nm backbone-bond-path
+    estimate) -- grompp refuses to even set up the pull code in the
+    shared 5 nm single-molecule box (single_mol_raw's box_nm, also used by
+    bulk_pack) because 2.78 nm already exceeds its own minimum-image
+    safety limit (0.49 * box size = 2.45 nm), regardless of the restraint
+    target. Re-boxes into a bigger, vacuum_nvt-only box (not touching
+    single_em.gro or anything downstream of it) rather than growing the
+    shared box, which would needlessly cascade into bulk_pack/bulk_top for
+    all three species."""
     input:
         gro=f"{RES}/{{species}}/single_em.gro",
         top=f"{RES}/{{species}}/single.top",
-        mdp="mdp/nvt.mdp",
+        itp=lambda wc: f"{RES}/{wc.species}/{molname(wc.species)}.itp",
+        mdp="mdp/vacuum_nvt.mdp",
     output:
+        box_gro=f"{RES}/{{species}}/vacuum_box.gro",
         gro=f"{RES}/{{species}}/vacuum_nvt.gro",
         edr=f"{RES}/{{species}}/vacuum_nvt.edr",
         tpr=f"{RES}/{{species}}/vacuum_nvt.tpr",
+        ndx=f"{RES}/{{species}}/vacuum_pull.ndx",
     params:
         prefix=f"{RES}/{{species}}/vacuum_nvt",
         mdp_rendered=f"{RES}/{{species}}/vacuum_nvt.rendered.mdp",
         nsteps=lambda wc: int(config["bulk"]["vacuum_nvt_ps"] / 0.002),
+        extend_fraction=config["bulk"]["vacuum_extend_fraction"],
+        pull_k=config["bulk"]["vacuum_pull_k_kj_per_mol_nm2"],
+        projected_bond_length_nm=0.125,  # tetrahedral sp3 zigzag projection
     threads: 4
     run:
+        def count_atoms(gro_path):
+            with open(gro_path) as fh:
+                fh.readline()
+                return int(fh.readline())
+
+        n_atoms = count_atoms(input.gro)
+        n_bonds = backbone_bond_path_length(input.itp, n_atoms)
+        full_extension_nm = n_bonds * params.projected_bond_length_nm
+        pull_target_nm = params.extend_fraction * full_extension_nm
+
+        # Box must satisfy grompp's own minimum-image safety check
+        # (pull-group distance < 0.49 * box size) for BOTH the restraint
+        # target and whatever the starting structure's own end-to-end
+        # distance already is -- 1.2x margin on top of the tighter of
+        # the two 0.49-scaled requirements, floor at the original 5 nm.
+        box_edge_nm = max(5.0, full_extension_nm / 0.49 * 1.2)
+        shell(
+            "gmx_mpi editconf -f {input.gro} -o {output.box_gro} "
+            "-box {box_edge_nm} {box_edge_nm} {box_edge_nm} -c"
+        )
+
+        with open(output.ndx, "w") as fh:
+            # grompp -n suppresses its own auto-generated default groups
+            # (confirmed live 2026-11-16: "System" came back missing for
+            # tc-grps once a custom index file was supplied) -- so System
+            # must be written here explicitly, not just the two pull groups.
+            system_atoms = " ".join(str(i) for i in range(1, n_atoms + 1))
+            fh.write(f"[ System ]\n{system_atoms}\n\n")
+            fh.write(f"[ ChainEnd1 ]\n1\n\n[ ChainEnd2 ]\n{n_atoms}\n")
+
         render_mdp(
             input.mdp,
             params.mdp_rendered,
             nvt_nsteps=params.nsteps,
             temperature_K=config["temperature_K"],
+            pull_target_nm=f"{pull_target_nm:.4f}",
+            pull_k=params.pull_k,
         )
         shell(
-            "gmx_mpi grompp -f {params.mdp_rendered} -c {input.gro} -r {input.gro} "
-            "-p {input.top} -o {output.tpr} -maxwarn 2"
+            "gmx_mpi grompp -f {params.mdp_rendered} -c {output.box_gro} -r {output.box_gro} "
+            "-p {input.top} -n {output.ndx} -o {output.tpr} -maxwarn 2"
         )
         shell("gmx_mpi mdrun -deffnm {params.prefix} -ntomp {threads}")
 

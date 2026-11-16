@@ -71,6 +71,21 @@ bulk:
   # conformational energy at temperature_K, not to equilibrate a box.
   vacuum_nvt_ps: 100
   vacuum_discard_ps: 20
+  # Anti-folding pull restraint added 2026-11-16 -- see vacuum_nvt's
+  # docstring: without it, a floppy 10-mer collapses onto itself in vacuum
+  # and self-solvates its own polar groups, corrupting the vacuum
+  # reference state this whole method depends on. Target distance between
+  # the oligomer's two terminal cap atoms is vacuum_extend_fraction times
+  # its own backbone bond-path length (from the itp's [ bonds ] graph) *
+  # 0.125 nm/bond (a standard tetrahedral sp3 zigzag projection) -- a
+  # flat-bottom restraint, so it only pushes back when the chain tries to
+  # fold tighter than this, never forcing a rigid, fully-extended pose.
+  # 0.85 is a deliberately generous (not fully-extended) fraction: the
+  # goal is just to break the global self-folding pathway, not to demand a
+  # perfect all-trans conformation. Not yet independently tuned/scanned --
+  # revisit if the resulting chi_BS still looks suspect.
+  vacuum_extend_fraction: 0.85
+  vacuum_pull_k_kj_per_mol_nm2: 500.0
 
 # Step 2: dilute slab adsorption near the Fe2O3 substrate (LAMMPS).
 # The dilute-adsorption rules themselves are not implemented yet -- see
