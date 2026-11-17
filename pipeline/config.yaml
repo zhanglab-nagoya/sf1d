@@ -8,7 +8,7 @@ temperature_K: 300
 pressure_bar: 1.0
 
 # Step 0+1: bulk liquid / melt boxes (GROMACS).
-# oligomer_length is repeat units per capped oligomer (CH3-[monomer]_n-CH3n),
+# oligomer_length is repeat units per capped oligomer (CH3n-[monomer]_n-CH3n),
 # used only to get per-monomer molar volume and cohesive energy density —
 # not the real chain length (see docs/usage.md on segment-size mapping).
 bulk:
@@ -120,8 +120,8 @@ slab:
   # primary chis estimate, which should come from an isolated-segment-like
   # analog instead (chain connectivity/cooperativity would otherwise bias
   # the measured contact/bulk ratio away from a true per-segment chis).
-  # fragment_length=1 is that single capped repeat unit, CH3-{species}-CH3n
-  # (not oligomer_length=10's CH3-(species)_10-CH3n).
+  # fragment_length=1 is that single capped repeat unit, CH3n-{species}-CH3n
+  # (not oligomer_length=10's CH3n-(species)_10-CH3n).
   fragment_length: 1
   n_hex: 300 # cheap but comfortable for a single fragment's density profile
   # Lateral (x,y) box dims are NOT set here -- rules/step2_dilute.smk's

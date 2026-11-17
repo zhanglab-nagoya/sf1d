@@ -140,11 +140,24 @@ sanity-checking atom types against the topology.
 ## Using with polyply
 
 Point polyply at this directory (or symlink it alongside a standard
-`oplsaa.ff/`) and give it a sequence of `ST`/`MMA` residues framed by `CH3`
-(head) and `CH3n` (tail) to build a linear PSMA/PMMA chain — statistical
-(random residue order) or block (contiguous runs), per the project's
-compositions of interest. `custom-ffnonbonded.itp` must be on the GROMACS
-include path alongside the stock `oplsaa.ff/ffnonbonded.itp`.
+`oplsaa.ff/`) and give it a sequence of `ST`/`MMA` residues framed by
+`CH3n` on **both** ends (not `CH3`) to build a linear PSMA/PMMA chain —
+statistical (random residue order) or block (contiguous runs), per the
+project's compositions of interest. `custom-ffnonbonded.itp` must be on
+the GROMACS include path alongside the stock `oplsaa.ff/ffnonbonded.itp`.
+
+`CH3.ff`'s plain literature OPLS charges (C -0.3029, H 0.0694 ×3) sum to
+-0.0947, not 0 — only `CH3n.ff`'s charges (same values, uniformly shifted
+by +0.023675/atom) sum to exactly 0. `PAMA_ST_MMA.oplsaa.LigParGen_links.ff`
+bonds `CH3`/`CH3n` identically to either backbone attachment carbon, so
+they're structurally interchangeable, but capping with `CH3` on even one
+end leaves the whole molecule charged (confirmed live 2026-11-12: every
+oligomer/fragment this pipeline built was off by exactly -0.0947 e, and
+every LAMMPS run warned "System is not charge neutral", until both ends
+were switched to `CH3n`). `pipeline/rules/step0_step1_bulk.smk` and
+`step2_dilute.smk` already build every `-seq` string as `CH3n:1 ... CH3n:1`
+for this reason — `CH3.ff` is kept here only for provenance, never for
+capping.
 
 ## Citations
 

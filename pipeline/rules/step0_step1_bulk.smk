@@ -267,12 +267,36 @@ rule bulk_pack:
     count declares, which grompp then rejects). packmol's optimization-based
     approach reliably hits the exact requested count every time, verified
     directly for both the easy case (HEX, <6 s) and the hard case (ST10's
-    long, floppy C18 tail, ~2.3 min at this box size).
+    long, floppy C18 tail, ~2.3 min at this box size with the 2026-10-29-era
+    monomer parameters).
 
     Needs a PDB round-trip: packmol doesn't read/write .gro, so the
     EM-resolved single molecule is converted to PDB first, and packmol's
     PDB output is converted back to .gro with the real box vectors
-    reattached (a bare PDB has no periodic box info)."""
+    reattached (a bare PDB has no periodic box info).
+
+    Tolerates packmol's own STOP 173 ("ended without perfect packing"):
+    confirmed live 2026-11-16, with the updated (2026-11-12-PAMA-parameters)
+    ST monomer, GENCAN failed to reach a zero-overlap solution twice in a
+    row at nloop=1000 (~90 min each, residual function value ~215 across
+    26720 atoms) despite the single molecule's own geometry (extent/Rg)
+    being unchanged in any obvious way from the pre-update case that always
+    packed cleanly -- GENCAN's starting point is random and no seed is
+    fixed, so this reads as this specific packing problem being
+    close-to-but-not-quite within nloop=1000's margin, not a geometry bug.
+    packmol's own STOP-173 message explicitly recommends using the result
+    anyway ("still very likely that the current point fits your needs...
+    minimize the energy of the solution found"), and bulk_em right after
+    this rule is already designed (see mdp/em.mdp's own docstring) to
+    resolve far worse residual overlaps than this (gmx insert-molecules'
+    clashes, bond-length-scale distances 3x too short) with room to spare
+    -- so retrying packmol for another ~90 min bought nothing a free EM
+    step doesn't already give for free. On STOP 173, use packmol's own
+    box-constraint-forced output (`packed.pdb_FORCED`) instead of the
+    nominal `packed.pdb` (which may not even respect the box's periodic
+    boundary in this case) and let bulk_em do the rest. Any other packmol
+    exit code still fails the rule -- this carve-out is specific to the
+    documented 173 case, not a blanket "ignore packmol errors"."""
     input:
         gro=f"{RES}/{{species}}/single_em.gro",
     output:
@@ -284,6 +308,9 @@ rule bulk_pack:
         packed_pdb=f"{RES}/{{species}}/packed.pdb",
         inp_file=f"{RES}/{{species}}/packmol.inp",
     run:
+        import subprocess
+        import sys
+
         box_ang = [b * 10 for b in params.box_nm]  # nm -> Angstrom (packmol/PDB units)
 
         shell("gmx_mpi editconf -f {input.gro} -o {params.pdb_in}")
@@ -307,9 +334,41 @@ rule bulk_pack:
             )
             fh.write("end structure\n")
 
-        shell("packmol < {params.inp_file}")
+        with open(params.inp_file) as fh:
+            result = subprocess.run(["packmol"], stdin=fh)
+
+        pdb_for_editconf = params.packed_pdb
+        if result.returncode == 173:
+            # packmol names its box-constraint-forced fallback by appending
+            # "_FORCED" to the whole output filename (packed.pdb_FORCED, not
+            # packed_FORCED.pdb) -- gmx editconf identifies format purely by
+            # the trailing extension, so that name is rejected outright
+            # ("does not have a recognizable extension"); give it a
+            # same-content, properly-suffixed copy instead of renaming the
+            # original (keep the raw packmol output around for inspection).
+            import shutil
+
+            forced_pdb_raw = params.packed_pdb + "_FORCED"
+            forced_pdb = str(params.packed_pdb).replace(".pdb", "_forced.pdb")
+            shutil.copyfile(forced_pdb_raw, forced_pdb)
+            print(
+                f"bulk_pack: packmol ended without perfect packing (STOP 173) "
+                f"for {wildcards.species} -- using its box-constraint-forced "
+                f"best-effort solution {forced_pdb_raw} (copied to {forced_pdb} "
+                f"for gmx) instead of {params.packed_pdb}; bulk_em resolves the "
+                "residual overlaps from here.",
+                file=sys.stderr,
+            )
+            pdb_for_editconf = forced_pdb
+        elif result.returncode != 0:
+            raise RuntimeError(
+                f"packmol failed with exit code {result.returncode} "
+                f"(not the tolerated STOP-173 'imperfect packing' case) -- see "
+                f"{params.inp_file} and the console output above."
+            )
+
         shell(
-            "gmx_mpi editconf -f {params.packed_pdb} -o {output.gro} "
+            "gmx_mpi editconf -f {pdb_for_editconf} -o {output.gro} "
             "-box {params.box_nm[0]} {params.box_nm[1]} {params.box_nm[2]}"
         )
 
