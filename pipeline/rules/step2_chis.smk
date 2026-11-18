@@ -136,7 +136,16 @@ rule compute_chis:
     input:
         fragment_density=expand(f"{SLAB_RES2}/{{species}}/fragment_density.profile", species=["ST", "MMA"]),
         hexadecane_density=expand(f"{SLAB_RES2}/{{species}}/hexadecane_density.profile", species=["ST", "MMA"]),
-        merged_data=expand(f"{SLAB_RES2}/{{species}}/merged.data", species=["ST", "MMA"]),
+        # box_data must be relaxed.data, not merged.data: close_liquid_gap.py
+        # (part of the fragment-insertion redesign, rules/step2_equilibrate.smk)
+        # resizes the z-box between those two stages, so merged.data's Lz/
+        # substrate zmin/zmax no longer match the box the production run's
+        # fix ave/chunk profiles were actually computed in (confirmed live
+        # 2026-11-18: MMA's merged.data has zhi=108.86 A vs relaxed.data's
+        # real zhi=87.56 A -- this was a latent bug, caught only now since
+        # compute_chis had never been run against real redesigned-pipeline
+        # data before).
+        box_data=expand(f"{SLAB_RES2}/{{species}}/relaxed.data", species=["ST", "MMA"]),
         segment_volume="results/segment_volume.yaml",
     output:
         chis="results/chis.yaml",

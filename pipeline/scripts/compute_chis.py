@@ -11,21 +11,29 @@ regions share the same 1 Angstrom bin width and the same species' per-atom
 volume), so the raw `density/number` column from `fix ave/chunk` can be used
 directly as phi -- no mass/volume conversion needed.
 
-Geometry: merged.data places the substrate as a single contiguous block
-[sub_zmin, sub_zmax] (confirmed live 2026-11-08 by directly reading its
-Atoms section, for both species -- NOT two separate periodic-wrapped
-chunks as the box's zero/nonzero hexadecane-density regions alone might
-suggest). Everything outside that range is a single contiguous "liquid
-arc" running from sub_zmax up through the box's periodic wrap back down to
-sub_zmin, parameterized by arc-length coordinate s = (z - sub_zmax) % Lz,
-s in (0, arc_length). s=0 is the substrate's "upper" face; s=arc_length is
-its "lower" face (approached by the liquid via the periodic wrap). This
-generalizes cleanly over an asymmetry confirmed live 2026-11-08: ST's 10 ns
-production run left a genuine ~10 A vacuum gap at the wrap-around (lower)
-face -- the liquid never fully closed that side -- while MMA's did close
-it and sees contact on both faces. Each face's validity (real liquid
-contact vs. a vacuum/free-surface edge) is checked independently per
-species against config.yaml's slab.chis_min_contact_density_fraction,
+Geometry: box_data (results/slab/{species}/relaxed.data -- NOT merged.data)
+places the substrate as a single contiguous block [sub_zmin, sub_zmax]
+(confirmed live 2026-11-08 by directly reading its Atoms section, for both
+species -- NOT two separate periodic-wrapped chunks as the box's zero/
+nonzero hexadecane-density regions alone might suggest). This MUST be
+relaxed.data, not merged.data: the fragment-insertion redesign's
+close_liquid_gap.py resizes the z-box between those two stages (confirmed
+live 2026-11-18 -- MMA's merged.data has zhi=108.86 A, but the box the
+production run (and these density profiles) actually used, per relaxed.data,
+has zhi=87.56 A), so merged.data's Lz/sub_zmin/sub_zmax no longer describe
+the geometry fix_ave/chunk's bins were computed in. Everything outside
+[sub_zmin, sub_zmax] is a single contiguous "liquid arc" running from
+sub_zmax up through the box's periodic wrap back down to sub_zmin,
+parameterized by arc-length coordinate s = (z - sub_zmax) % Lz, s in
+(0, arc_length). s=0 is the substrate's "upper" face; s=arc_length is its
+"lower" face (approached by the liquid via the periodic wrap). This
+generalizes cleanly over an asymmetry confirmed live 2026-11-08 against the
+first, since-superseded flow2-ai run: ST's production left a genuine ~10 A
+vacuum gap at the wrap-around (lower) face -- the liquid never fully closed
+that side -- while MMA's did close it and sees contact on both faces (not
+yet re-confirmed against the redesigned-pipeline run). Each face's validity
+(real liquid contact vs. a vacuum/free-surface edge) is checked
+independently per species against config.yaml's slab.chis_min_contact_density_fraction,
 using hexadecane's own mean density there (hundreds of molecules, well
 sampled, unlike the single fragment).
 
@@ -58,10 +66,12 @@ SUBSTRATE_LABEL = {"ST": "A", "MMA": "B"}
 
 def read_data_header_and_substrate_z(data_path, n_sub_types):
     """box (xlo,xhi,ylo,yhi,zlo,zhi) and the substrate's own [zmin,zmax],
-    reading merged.data directly (atom_style full: id mol type q x y z).
-    The substrate always has the LAST n_sub_types atom types (merge_slab.py
-    offsets the organic side's types to 1..n_org_types and appends the
-    substrate's at n_org_types+1..n_org_types+n_sub_types)."""
+    reading relaxed.data directly (atom_style full: id mol type q x y z) --
+    NOT merged.data, see the module docstring's Geometry paragraph. The
+    substrate always has the LAST n_sub_types atom types, still true after
+    insert_fragment.py's insertion (scripts/insert_fragment.py places the
+    fragment's own new types BETWEEN hexadecane's and substrate's, shifting
+    only substrate's type numbers up, never past the end)."""
     box = {}
     n_atom_types = None
     atoms = []
@@ -147,10 +157,10 @@ def running_cumulative_mean(per_window_region_mean):
     return cs / counts
 
 
-def compute_species_chis(species, fragment_path, hexadecane_path, merged_data_path,
+def compute_species_chis(species, fragment_path, hexadecane_path, box_data_path,
                           n_sub_types, a_angstrom, contact_width_a, bulk_margin_a,
                           min_contact_fraction, discard_fraction, convergence_tol):
-    lz, sub_zmin, sub_zmax = read_data_header_and_substrate_z(merged_data_path, n_sub_types)
+    lz, sub_zmin, sub_zmax = read_data_header_and_substrate_z(box_data_path, n_sub_types)
 
     frag_ts, coords, frag_dens = parse_density_profile(fragment_path)
     hex_ts, coords_hex, hex_dens = parse_density_profile(hexadecane_path)
@@ -255,14 +265,14 @@ def main():
 
     chis = {}
     diagnostics = {}
-    for species, fragment_path, hexadecane_path, merged_data_path in zip(
+    for species, fragment_path, hexadecane_path, box_data_path in zip(
         params.species,
         snakemake.input.fragment_density,
         snakemake.input.hexadecane_density,
-        snakemake.input.merged_data,
+        snakemake.input.box_data,
     ):
         chis_x, diag = compute_species_chis(
-            species, fragment_path, hexadecane_path, merged_data_path,
+            species, fragment_path, hexadecane_path, box_data_path,
             n_sub_types, a_angstrom,
             params.contact_width_a, params.bulk_margin_a,
             params.min_contact_fraction, params.discard_fraction,
